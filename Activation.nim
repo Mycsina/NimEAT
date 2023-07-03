@@ -1,10 +1,6 @@
 import std/[math]
 
-type
-    ActivationFunc* = concept x
-        x(type float) is float
-
-proc Heaviside*(x: float): float =
+proc heaviside*(x: float): float =
     if x < 0.0:
         return 0.0
     elif x > 0.0:
@@ -12,11 +8,31 @@ proc Heaviside*(x: float): float =
     else:
         return 0.5
 
-proc Sigmoid*(x: float): float =
+proc sigmoid*(x: float): float =
     return 1.0 / (1.0 + exp(-x))
 
-proc ReLU*(x: float): float =
+proc reLU*(x: float): float =
     return max(0.0, x)
 
-proc LeakyReLU*(x: float): float =
+proc leakyReLU*(x: float): float =
     return max(0.01 * x, x)
+
+proc siLU*(x: float): float =
+    return x * sigmoid(x)
+
+proc softplus*(x: float): float =
+    return ln(1.0 + exp(x))
+
+proc mish*(x: float): float =
+    return x * tanh(softplus(x))
+
+# Useless for now
+
+proc eLU*(x: float, alpha: float): float =
+    if x < 0.0:
+        return alpha * (exp(x) - 1.0)
+    else:
+        return x
+
+proc squareplus*(x: float, beta: float): float =
+    return (x + sqrt(x * x + beta)) / 2.0
