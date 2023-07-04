@@ -19,6 +19,7 @@ type
         weight*: float
         innovation*: int
         enabled*: bool
+    # store output nodes separately so we can regularly iterate over nodes
     Genotype* = ref object
         nodes*: seq[NodeGene]
         links*: seq[LinkGene]

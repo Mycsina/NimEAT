@@ -11,6 +11,7 @@ type
         idx*: int
         incoming*: seq[Link]
         value*: float
+    # separate links into forward and recurrent
     Link* = ref object
         lType*: LType
         src*: int
@@ -18,7 +19,7 @@ type
         weight*: float
         enabled*: bool
         signal*: float
-    Phenotype* = ref object
+    Network* = ref object
         nodes*: seq[Node]
         links*: seq[Link]
         inputs*: seq[Node]
@@ -38,8 +39,10 @@ proc newLink*(src, dst: int, weight: float, enabled: bool): Link =
     result.weight = weight
     result.enabled = enabled
 
-proc addNode*(p: Phenotype, nodeType: NType) =
+proc addNode*(p: Network, nodeType: NType) =
     var n = newNode(nodeType)
+    if n.ntype == BIAS:
+        n.value = 1
     n.idx = p.nodes.len
     p.nodes.add n
     if nodeType == INPUT:
@@ -47,41 +50,42 @@ proc addNode*(p: Phenotype, nodeType: NType) =
     elif nodeType == OUTPUT:
         p.outputs.add n
 
-proc addLink*(p: Phenotype, src, dst: int, weight: float, enabled: bool) =
+proc addLink*(n: Network, src, dst: int, weight: float, enabled: bool) =
     var l = newLink(src, dst, weight, enabled)
-    p.links.add l
-    p.nodes[dst].incoming.add l
+    n.links.add l
+    n.nodes[dst].incoming.add l
 
-proc newPhenotype*(g: Genotype): Phenotype =
-    result = new(Phenotype)
+proc generateNetwork*(g: Genotype): Network =
+    result = new(Network)
     result.nodes = @[]
     result.links = @[]
     result.blueprint = g
     for node in g.nodes:
         result.addNode(node.ntype)
+    # TODO: handle RNNs (we need to store previous state)
     for link in g.links:
         result.addLink(link.src, link.dst, link.weight, link.enabled)
 
-proc getOutputs*(p: Phenotype, inputs: seq[float], activation: proc(x: float): float): seq[float] =
+# TODO: handle RNNs
+proc predict*(n: Network, inputs: seq[float], activation: proc(x: float): float): seq[float] =
     for i in 0 ..< inputs.len:
-        p.inputs[i].value = inputs[i]
+        n.inputs[i].value = inputs[i]
     for node in p.nodes:
-        if node.ntype == INPUT:
+        if node.ntype == INPUT or node.ntype == BIAS:
             continue
-        if node.ntype == HIDDEN or node.ntype == OUTPUT:
-            node.value = 0.0
-            for link in node.incoming:
-                if link.enabled:
-                    node.value += link.weight * p.nodes[link.src].value
-            node.value = activation(node.value)
+        node.value = 0.0
+        for link in node.incoming:
+            if link.enabled:
+                node.value += link.weight * n.nodes[link.src].value
+        node.value = activation(node.value)
     result = newSeq[float](p.outputs.len)
-    for i in 0 ..< p.outputs.len:
-        result[i] = p.outputs[i].value
+    for i in 0 ..< n.outputs.len:
+        result[i] = n.outputs[i].value
 
-proc getOutputs*(p: Phenotype, inputs: seq[float]): seq[float] =
-    result = getOutputs(p, inputs, sigmoid)
+proc predict*(n: Network, inputs: seq[float]): seq[float] =
+    result = predict(n, inputs, sigmoid)
 
-proc toGraph*(this: Phenotype): Graph[Edge] =
+proc toGraph*(this: Network): Graph[Edge] =
     var graph = newGraph[Edge]()
     for link in this.links:
         if link.enabled:

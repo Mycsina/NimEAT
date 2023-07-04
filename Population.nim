@@ -2,7 +2,7 @@ import std/[random]
 
 import Genotype
 import Species
-import Phenotype
+import Network
 import Operations
 
 randomize()
