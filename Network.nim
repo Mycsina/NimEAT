@@ -1,24 +1,27 @@
+import std/[sequtils]
+
 import Activation
 import Genotype
 
 import nimgraphviz
 
 type
-    LType* = enum
-        FORWARD, RECURRENT
     Node* = ref object
         ntype*: NType
         idx*: int
-        incoming*: seq[Link]
+        ingoing*: seq[Link]
         value*: float
-    # separate links into forward and recurrent
+        function*: proc(x: float): float
+        lastValues*: seq[float]
+        activeSum*: float
+        gotInput*: bool
+        activationCount*: int
     Link* = ref object
-        lType*: LType
         src*: int
         dst*: int
         weight*: float
         enabled*: bool
-        signal*: float
+        timeDelay*: bool
     Network* = ref object
         nodes*: seq[Node]
         links*: seq[Link]
@@ -27,10 +30,12 @@ type
         score*: float
         blueprint*: Genotype
 
-proc newNode*(ntype: NType): Node =
+proc newNode*(ntype: NType, id: int): Node =
     result = new(Node)
     result.ntype = ntype
-    result.incoming = newSeq[Link]()
+    result.idx = id
+    result.ingoing = newSeq[Link]()
+    result.lastValues = newSeq[float](2)
 
 proc newLink*(src, dst: int, weight: float, enabled: bool): Link =
     result = new(Link)
@@ -39,11 +44,10 @@ proc newLink*(src, dst: int, weight: float, enabled: bool): Link =
     result.weight = weight
     result.enabled = enabled
 
-proc addNode*(p: Network, nodeType: NType) =
-    var n = newNode(nodeType)
+proc addNode*(p: Network, nodeType: NType, id: int) =
+    var n = newNode(nodeType, id)
     if n.ntype == BIAS:
         n.value = 1
-    n.idx = p.nodes.len
     p.nodes.add n
     if nodeType == INPUT:
         p.inputs.add n
@@ -53,7 +57,7 @@ proc addNode*(p: Network, nodeType: NType) =
 proc addLink*(n: Network, src, dst: int, weight: float, enabled: bool) =
     var l = newLink(src, dst, weight, enabled)
     n.links.add l
-    n.nodes[dst].incoming.add l
+    n.nodes[dst].ingoing.add l
 
 proc generateNetwork*(g: Genotype): Network =
     result = new(Network)
@@ -61,26 +65,42 @@ proc generateNetwork*(g: Genotype): Network =
     result.links = @[]
     result.blueprint = g
     for node in g.nodes:
-        result.addNode(node.ntype)
+        result.addNode(node.ntype, node.id)
     # TODO: handle RNNs (we need to store previous state)
     for link in g.links:
         result.addLink(link.src, link.dst, link.weight, link.enabled)
 
-# TODO: handle RNNs
+proc outputsOff*(n: Network): bool =
+    for node in n.outputs:
+        if node.activationCount == 0:
+            return true
+    return false
+
 proc predict*(n: Network, inputs: seq[float], activation: proc(x: float): float): seq[float] =
+    # while outputsOff(n):
     for i in 0 ..< inputs.len:
         n.inputs[i].value = inputs[i]
-    for node in p.nodes:
-        if node.ntype == INPUT or node.ntype == BIAS:
-            continue
-        node.value = 0.0
-        for link in node.incoming:
-            if link.enabled:
-                node.value += link.weight * n.nodes[link.src].value
-        node.value = activation(node.value)
-    result = newSeq[float](p.outputs.len)
-    for i in 0 ..< n.outputs.len:
-        result[i] = n.outputs[i].value
+    for node in n.nodes:
+        if node.ntype != INPUT and node.ntype != BIAS:
+            node.activeSum = 0
+            node.gotInput = false
+            for incoming in node.ingoing:
+                let src = n.nodes[incoming.src]
+                if not incoming.timeDelay:
+                    node.activeSum += src.value * incoming.weight
+                    if src.ntype == INPUT or src.gotInput:
+                        node.gotInput = true
+                else:
+                    node.activeSum += incoming.weight * src.lastValues[0]
+    for node in n.nodes:
+        if node.ntype != INPUT:
+            if node.gotInput:
+                node.lastValues[1] = node.lastValues[0]
+                node.lastValues[0] = node.value
+                node.value = activation(node.activeSum)
+                inc node.activationCount
+    return n.outputs.mapIt(it.value)
+
 
 proc predict*(n: Network, inputs: seq[float]): seq[float] =
     result = predict(n, inputs, sigmoid)
@@ -91,3 +111,7 @@ proc toGraph*(this: Network): Graph[Edge] =
         if link.enabled:
             graph.addEdge($link.src -- $link.dst)
     return graph
+
+# TODO: this
+proc dump*(this: Network) =
+    discard
