@@ -226,24 +226,23 @@ proc reproduce*(s: Species, p: Population) =
     for i in 0..<s.expectedOffspring:
         let leader = s.members[0]
         # If leader is population champion, mutate it
-        if leader.isChampion:
-            let cloneGenome = leader.genome.clone()
-            if leader.expectedOffspring > 0:
-                if leader.expectedOffspring > 1:
-                    if rand(1.0) < 0.8 or MUT_ADD_LINK_PROB == 0.0:
-                        cloneGenome.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
-                    else:
-                        cloneGenome.mutateAddLink()
-                baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
-                leader.expectedOffspring -= 1
+        if leader.isChampion and leader.expectedOffspring > 0:
+            var cloneGenome = leader.genome.clone()
+            if leader.expectedOffspring > 1:
+                if rand(1.0) < 0.8 or MUT_ADD_LINK_PROB == 0.0:
+                    cloneGenome.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
+                else:
+                    cloneGenome.mutateAddLink()
+            baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
+            leader.expectedOffspring -= 1
         elif not keptLeader and s.expectedOffspring > 5:
             ## If we still haven't saved the leader, do so
-            let cloneGenome = leader.genome.clone()
+            var cloneGenome = leader.genome.clone()
             baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
             keptLeader = true
         elif rand(1.0) < MUT_ONLY_PROB or s.members.len == 1:
             ## If we choose to mutate/there's only us left
-            let
+            var
                 randomParent = s.members[rand(s.members.high)]
                 cloneGenome = randomParent.genome.clone()
                 ## Check if structure was mutated
@@ -274,7 +273,7 @@ proc reproduce*(s: Species, p: Population) =
                     let randSpeciesIdx = floor(randmult * randSpecies.members.high.toFloat + 0.5).toInt
                     randSpecies = p.species[randSpeciesIdx]
                 dad = randSpecies.members[0]
-            let newGenome = mating(mom.genome, dad.genome)
+            var newGenome = mating(mom.genome, dad.genome)
             if rand(1.0) > MATE_ONLY_PROB:
                 ## Randomly mutate the baby, or always if parents are the same.
                 mutate(newGenome)

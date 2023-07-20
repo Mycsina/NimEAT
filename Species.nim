@@ -66,7 +66,7 @@ proc newSpecies*(representative: Organism, id: int): Species =
 
 proc newOrganism*(g: Genotype, fit: float, gen: int): Organism =
     result = new Organism
-    result.genome = g
+    result.genome = g.clone()
     result.fitness = fit
     result.originalFitness = fit
     result.generation = gen

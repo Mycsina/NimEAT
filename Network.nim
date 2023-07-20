@@ -7,8 +7,8 @@ import nimgraphviz
 
 type
     Node* = ref object
-        ntype*: NType
         idx*: int
+        ntype*: NType
         ingoing*: seq[Link]
         value*: float
         function*: proc(x: float): float
@@ -48,16 +48,29 @@ proc addNode*(p: Network, nodeType: NType, id: int) =
     var n = newNode(nodeType, id)
     if n.ntype == BIAS:
         n.value = 1
-    p.nodes.add n
-    if nodeType == INPUT:
+    elif nodeType == INPUT:
         p.inputs.add n
     elif nodeType == OUTPUT:
         p.outputs.add n
+    p.nodes.add n
+
+proc findNode*(n: Network, id: int): Node =
+    for node in n.nodes:
+        if node.idx == id:
+            return node
+    return nil
 
 proc addLink*(n: Network, src, dst: int, weight: float, enabled: bool) =
     var l = newLink(src, dst, weight, enabled)
     n.links.add l
-    n.nodes[dst].ingoing.add l
+    let node = findNode(n, dst)
+    if not node.isNil:
+        node.ingoing.add l
+    else:
+        echo "Error: tried to add link to non-existent node"
+        for node in n.nodes:
+            echo node.idx
+        echo "adding ", src, " -> ", dst
 
 proc generateNetwork*(g: Genotype): Network =
     result = new(Network)

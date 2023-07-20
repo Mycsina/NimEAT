@@ -11,14 +11,14 @@ var
     EXCESS_COEFF* = 1.0
     MUTDIFF_COEFF* = 0.4
 var
-    MATE_MULTIPOINT_PROB* = 0.3
+    MATE_MULTIPOINT_PROB* = 1.0
     DISABLED_GENE_INHERIT_PROB* = 0.75
 
 
 type
     NType* = enum
         INPUT, HIDDEN, OUTPUT, BIAS
-    NodeGene* = object
+    NodeGene* = ref object
         id*: int
         nType*: NType
     LinkGene* = ref object
@@ -46,6 +46,7 @@ proc resetInnovation*() =
     SEEN_INNO = newTable[(int, int), int]()
 
 proc newNodeGene*(nodeType: NType, id: int): NodeGene =
+    result = new NodeGene
     result.nType = nodeType
     result.id = id
 
@@ -326,7 +327,7 @@ proc mutateAddLink*(g: Genotype) =
         let l = g.addLinkGene(node1, node2, randWeight(), true)
         l.isRecurrent = recursion
 
-proc innovationCrossover*(first, second: Genotype): Genotype =
+proc innovationCrossover(first, second: Genotype): Genotype =
     let
         fitness1 = first.fitness
         fitness2 = second.fitness
@@ -405,6 +406,11 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
             discard child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled)
     return child
 
+proc singlepointCrossover(first, second: Genotype): Genotype =
+    discard
+
 proc mating*(first, second: Genotype): Genotype =
     if rand(1.0) < MATE_MULTIPOINT_PROB:
         return innovationCrossover(first, second)
+    else:
+        return singlepointCrossover(first, second)
