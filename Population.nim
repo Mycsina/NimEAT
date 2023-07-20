@@ -56,22 +56,25 @@ proc speciate*(p: Population) =
         if speciesNum == 0:
             let species = newSpecies(o, speciesNum + 1)
             p.species.add(species)
+            species.members.add(o)
             o.species = species
         else:
             for s in p.species:
-                if o.genome.speciationDistance(s.representative.genome) < COMPAT_THRESHOLD:
+                let distance = o.genome.speciationDistance(s.representative.genome)
+                if distance < COMPAT_THRESHOLD:
                     o.species = s
                     s.members.add(o)
                     break
             if o.species == nil:
                 let species = newSpecies(o, speciesNum + 1)
                 p.species.add(species)
+                species.members.add(o)
                 o.species = species
 
 proc advanceGeneration*(p: Population) =
     ## Advances the population to the next generation
     let newGen = p.currentGeneration + 1
-    echo "Generation ", newGen
+    echo "Generation ", p.currentGeneration
     if ENFORCED_DIVERSITY:
         if p.species.len < DIVERSITY_TARGET:
             COMPAT_THRESHOLD -= COMPATIBILITY_MODIFIER
@@ -112,15 +115,17 @@ proc advanceGeneration*(p: Population) =
         ## TODO: implement baby stealing
         discard
     p.cullSpecies()
+    echo "Population: ", p.population.len
     p.reproduce()
     # Remove organisms from their species' list and from the master record
     for i in countdown(p.population.len - 1, 0):
         let o = p.population[i]
         o.species.members.remove(o)
-        p.population.remove(o)
-    for s in p.species:
+        p.population.delete(i)
+    for i in countdown(p.species.len - 1, 0):
+        let s = p.species[i]
         if s.members.len == 0:
-            p.species.remove(s)
+            p.species.delete(i)
         else:
             if s.novel:
                 s.novel = false
@@ -128,12 +133,14 @@ proc advanceGeneration*(p: Population) =
                 s.age += 1
             for o in s.members:
                 p.population.add(o)
+    echo "Population: ", p.population.len
     p.currentGeneration = newGen
 
 
 proc expectedOffspring*(p: Population) =
     ## Calculates expected offspring for each organism, and then per Species
     let averageFit = p.averageFitness()
+    var totalExpected = 0
     echo "Average fitness: ", averageFit
     for o in p.population:
         o.expectedOffspring = o.fitness / averageFit
@@ -152,7 +159,18 @@ proc expectedOffspring*(p: Population) =
                 let entire = floor(carry).toInt
                 expected += entire
                 carry -= entire.toFloat
+        s.expectedOffspring = expected
+        totalExpected += expected
     # TODO: we may need to be more precise due to rounding errors
+    if totalExpected < p.population.len:
+        let
+            bestSpecies = p.species[0]
+        inc bestSpecies.expectedOffspring
+        if totalExpected + 1 < p.population.len:
+            for o in p.population:
+                o.expectedOffspring = 0
+            bestSpecies.expectedOffspring = p.population.len
+
 
 proc deltaCoding*(p: Population) =
     ## Assign offspring to the leaders of the two best species
@@ -192,8 +210,8 @@ proc cullSpecies*(p: Population) =
 
 proc reproduce*(p: Population) =
     ## Reproduce all organisms marked for reproduction
-    for s in p.species:
-        s.reproduce(p)
+    for i in 0..<p.species.len:
+        p.species[i].reproduce(p)
 
 proc reproduce*(s: Species, p: Population) =
     ## Reproduces the species
@@ -210,13 +228,14 @@ proc reproduce*(s: Species, p: Population) =
         # If leader is population champion, mutate it
         if leader.isChampion:
             let cloneGenome = leader.genome.clone()
-            if leader.expectedOffspring > 1:
-                if rand(1.0) < 0.8 or MUT_ADD_LINK_PROB == 0.0:
-                    cloneGenome.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
-                else:
-                    cloneGenome.mutateAddLink()
-            baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
-            leader.expectedOffspring -= 1
+            if leader.expectedOffspring > 0:
+                if leader.expectedOffspring > 1:
+                    if rand(1.0) < 0.8 or MUT_ADD_LINK_PROB == 0.0:
+                        cloneGenome.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
+                    else:
+                        cloneGenome.mutateAddLink()
+                baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
+                leader.expectedOffspring -= 1
         elif not keptLeader and s.expectedOffspring > 5:
             ## If we still haven't saved the leader, do so
             let cloneGenome = leader.genome.clone()
@@ -228,7 +247,7 @@ proc reproduce*(s: Species, p: Population) =
                 randomParent = s.members[rand(s.members.high)]
                 cloneGenome = randomParent.genome.clone()
                 ## Check if structure was mutated
-            mutate(s, cloneGenome)
+            mutate(cloneGenome)
             baby = newOrganism(cloneGenome, 0.0, randomParent.generation + 1)
         else:
             ## Otherwise, we should mate
@@ -256,12 +275,29 @@ proc reproduce*(s: Species, p: Population) =
                     randSpecies = p.species[randSpeciesIdx]
                 dad = randSpecies.members[0]
             let newGenome = mating(mom.genome, dad.genome)
-            if rand(1.0) > MATE_ONLY_PROB or dad.genome == mom.genome or dad.genome.speciationDistance(mom.genome) == 0.0:
+            if rand(1.0) > MATE_ONLY_PROB:
                 ## Randomly mutate the baby, or always if parents are the same.
-                mutate(s, newGenome)
+                mutate(newGenome)
             baby = newOrganism(newGenome, 0.0, p.currentGeneration + 1)
-        p.population.add(baby)
-    p.speciate()
+        ## Assign to species at birth
+        if p.species.len == 0:
+            let newSpecies = newSpecies(baby)
+            p.species.add(newSpecies)
+            newSpecies.members.add(baby)
+            baby.species = newSpecies
+        else:
+            for s in p.species:
+                let distance = baby.genome.speciationDistance(s.representative.genome)
+                if distance < COMPAT_THRESHOLD:
+                    baby.species = s
+                    s.members.add(baby)
+                    break
+            if baby.species == nil:
+                let newSpecies = newSpecies(baby)
+                p.species.add(newSpecies)
+                newSpecies.members.add(baby)
+                baby.species = newSpecies
+
 
 proc sortSpecies*(p: Population) =
     p.species.sort(proc(a, b: Species): int =

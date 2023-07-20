@@ -103,6 +103,7 @@ proc clone*(this: Genotype): Genotype =
 
 proc clone*(this: LinkGene): LinkGene =
     result = newLinkGene(this.src, this.dst, this.weight, this.enabled)
+    result.innovation = this.innovation
 
 proc checkNode*(this: Genotype, id: int): bool =
     for n in this.nodes:
@@ -160,43 +161,44 @@ proc remove*[T](container: var seq[T], item: T) =
     if idx != -1:
         container.delete(idx)
 
-proc speciationDistance*(first, second: Genotype, absolute = false): float =
-    var maxGenomeSize: int
-    if first.links.len > second.links.len:
-        maxGenomeSize = first.links.len
-    else:
-        maxGenomeSize = second.links.len
+proc speciationDistance*(first, second: Genotype): float =
     var
-        fIter = first.links.low
-        sIter = second.links.low
-        disjoint = 0
-        excess = 0
-        matching = 0
-    while fIter != first.links.high and sIter != second.links.high:
-        if fIter == first.links.high:
-            inc sIter
-            inc excess
-        elif sIter == second.links.high:
-            inc fIter
-            inc excess
+        numDisjoint = 0.0
+        numExcess = 0.0
+        numMatching = 0.0
+    let
+        size1 = first.links.len
+        size2 = second.links.len
+        maxGenomeSize = max(size1, size2)
+    var
+        gene1, gene2: LinkGene
+        i, i1, i2: int = 0
+    while i < maxGenomeSize:
+        if i1 >= size1:
+            numExcess += 1.0
+            i2 += 1
+        elif i2 >= size2:
+            numExcess += 1.0
+            i1 += 1
         else:
+            gene1 = first.links[i1]
+            gene2 = second.links[i2]
             let
-                fInnov = first.links[fIter].innovation
-                sInnov = second.links[sIter].innovation
-            if fInnov == sInnov:
-                inc matching
-                inc fIter
-                inc sIter
-            elif fInnov < sInnov:
-                inc fIter
-                inc disjoint
-            else:
-                inc sIter
-                inc disjoint
-    if absolute:
-        maxGenomeSize = 1
-    return DISJOINT_COEFF * (disjoint / maxGenomeSize) + EXCESS_COEFF * (excess / maxGenomeSize) +
-            MUTDIFF_COEFF * (matching / maxGenomeSize)
+                p1innov = gene1.innovation
+                p2innov = gene2.innovation
+            if p1innov == p2innov:
+                numMatching += 1.0
+                i1 += 1
+                i2 += 1
+            elif p1innov < p2innov:
+                i1 += 1
+                numDisjoint += 1.0
+            elif p2innov < p1innov:
+                i2 += 1
+                numDisjoint += 1.0
+        inc i
+    result = DISJOINT_COEFF * numDisjoint + EXCESS_COEFF * numExcess + MUTDIFF_COEFF * (numMatching /
+            maxGenomeSize.toFloat)
 
 proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutType) =
     let severe = rand(1.0) > 0.5

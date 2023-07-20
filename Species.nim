@@ -48,6 +48,14 @@ type
         isChampion*: bool
         toDie*: bool
 
+proc newSpecies*(representative: Organism): Species =
+    result = new Species
+    result.members = @[]
+    result.id = CURR_SPECIES
+    result.representative = representative
+    result.novel = true
+    inc CURR_SPECIES
+
 proc newSpecies*(representative: Organism, id: int): Species =
     result = new Species
     result.members = @[]
@@ -108,7 +116,7 @@ proc markForDeath*(s: Species) =
     for i in s.parentNumber..s.members.high:
         s.members[i].toDie = true
 
-proc structuralMutation*(s: Species, g: Genotype): bool =
+proc structuralMutation*(g: Genotype): bool =
     ## Mutate the genome's structure
     var val = true
     if rand(1.0) < MUT_ADD_NODE_PROB:
@@ -119,7 +127,7 @@ proc structuralMutation*(s: Species, g: Genotype): bool =
         val = false
     return val
 
-proc connectionMutation*(s: Species, g: Genotype) =
+proc connectionMutation*(g: Genotype) =
     ## Mutate the genome's connection weights
     if rand(1.0) < MUT_WEIGHT_PROB:
         g.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
@@ -128,10 +136,10 @@ proc connectionMutation*(s: Species, g: Genotype) =
     if rand(1.0) < MUT_REENABLE_PROB:
         g.mutateReenable()
 
-proc mutate*(s: Species, g: Genotype) =
+proc mutate*(g: Genotype) =
     ## Mutate either the genome's structure or its connection weights
-    if not structuralMutation(s, g):
-        connectionMutation(s, g)
+    if not structuralMutation(g):
+        connectionMutation(g)
 
 proc calculateAvgFitness*(s: Species) =
     var total = 0.0

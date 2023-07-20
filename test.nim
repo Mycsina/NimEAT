@@ -1,4 +1,4 @@
-import std/[math]
+import std/[math, jsonutils, json]
 
 import Genotype
 import Network
@@ -21,24 +21,23 @@ proc xorEvaluate(o: Organism): bool =
         0.0
     ]
     var winner = false
+    var error = 0.0
     for i in 0 ..< inputs.len:
         let res = o.net.predict(inputs[i])
-        let error = abs(res[0] - outputs[i])
-        o.fitness = (4.0 - error).pow 2.0
-        if error < 0.1:
-            winner = true
-        else:
-            winner = false
-    if winner:
-        return true
+        error += abs(res[0] - outputs[i])
+    o.fitness = (4.0 - error).pow 2.0
+    if error < 0.1:
+        winner = true
     else:
-        return false
+        winner = false
+    return winner
 
 proc xorTest() =
     var g = newGenotype()
     g.addNodeGene(INPUT, 1)
     g.addNodeGene(INPUT, 2)
     g.addNodeGene(OUTPUT, 3)
+    g.connect()
     let p = newPopulation()
     p.spawn(g)
     var
@@ -47,18 +46,10 @@ proc xorTest() =
         for o in p.population:
             if xorEvaluate(o):
                 winner = true
-            break
+                break
         p.advanceGeneration()
     echo "Winner found in generation ", p.currentGeneration
-    p.population[0].net.blueprint.toGraph().exportImage("xor.png")
+    p.population[0].net.blueprint.toGraph().exportImage("xor_winner.png")
+    "xor_winner.json".open(fmWrite).write p.population[0].net.blueprint.toJson()
 
-# xorTest()
-var g = newGenotype()
-g.addNodeGene(INPUT, 1)
-g.addNodeGene(INPUT, 2)
-g.addNodeGene(OUTPUT, 3)
-g.connect()
-let p = newPopulation()
-p.spawn(g)
-p.speciate()
-p.sortSpecies()
+xorTest()

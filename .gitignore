@@ -1,2 +1,7 @@
 *.png
 test.nim
+nimcache
+*.json
+*.exe
+/bin/
+/tests/
