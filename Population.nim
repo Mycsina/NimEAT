@@ -10,8 +10,8 @@ randomize()
 var
     POP_SIZE* = 256
 var
-    REGULAR_CULLING_AGE* = 15
-    REGULAR_CULLING_INTERVAL* = 30
+    REGULAR_CULLING_AGE* = 10
+    REGULAR_CULLING_INTERVAL* = 20
 var
     ENFORCED_DIVERSITY* = true
     DIVERSITY_TARGET* = 5
@@ -115,7 +115,6 @@ proc advanceGeneration*(p: Population) =
         ## TODO: implement baby stealing
         discard
     p.cullSpecies()
-    echo "Population: ", p.population.len
     p.reproduce()
     # Remove organisms from their species' list and from the master record
     for i in countdown(p.population.len - 1, 0):
@@ -264,14 +263,16 @@ proc reproduce*(s: Species, p: Population) =
                     tries = 0
                 ## Try to find a species
                 while randSpecies == s and tries < 5:
-                    randSpecies = p.species[rand(p.species.high)]
-                    tries += 1
                     ## Select random species, trending towards better species
                     var randmult = gaussrand() / 4.0
                     if randmult > 1.0:
                         randmult = 1.0
-                    let randSpeciesIdx = floor(randmult * randSpecies.members.high.toFloat + 0.5).toInt
-                    randSpecies = p.species[randSpeciesIdx]
+                    let randSpeciesIdx = floor(randmult * p.species.high.toFloat + 0.5).toInt
+                    ## Python-like negative indexing
+                    if randSpeciesIdx < 0:
+                        randSpecies = p.species[ ^ -randSpeciesIdx]
+                    else:
+                        randSpecies = p.species[randSpeciesIdx]
                 dad = randSpecies.members[0]
             var newGenome = mating(mom.genome, dad.genome)
             if rand(1.0) > MATE_ONLY_PROB:

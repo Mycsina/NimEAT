@@ -93,8 +93,6 @@ proc predict*(n: Network, inputs: seq[float], activation: proc(x: float): float)
             node.activeSum = 0
             node.gotInput = false
             for incoming in node.ingoing:
-                for n in n.nodes:
-                    echo n.idx
                 let src = n.findNode(incoming.src)
                 if not incoming.timeDelay:
                     node.activeSum += src.value * incoming.weight

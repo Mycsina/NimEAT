@@ -1,5 +1,7 @@
 --mm: orc
+--deepcopy: on
 when not defined(release):
     --lineDir: on
     --lineTrace: on
-    --deepcopy: on
+    --profiler: on
+    --stackTrace: on

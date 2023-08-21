@@ -1,4 +1,6 @@
-import std/[math, jsonutils, json]
+import std/[math, jsonutils, json, random]
+
+import nimprof
 
 import Genotype
 import Network
@@ -26,7 +28,7 @@ proc xorEvaluate(o: Organism): bool =
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
     o.fitness = (4.0 - error).pow 2.0
-    if error < 0.1:
+    if error < 0.1 or (o.fitness > 7.5):
         winner = true
     else:
         winner = false

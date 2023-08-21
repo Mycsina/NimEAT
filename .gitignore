@@ -4,3 +4,4 @@ nimcache
 *.json
 *.exe
 /bin/
+*.txt

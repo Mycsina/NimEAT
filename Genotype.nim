@@ -9,7 +9,7 @@ randomize()
 var
     DISJOINT_COEFF* = 1.0
     EXCESS_COEFF* = 1.0
-    MUTDIFF_COEFF* = 0.4
+    MUTDIFF_COEFF* = 2.0
 var
     MATE_MULTIPOINT_PROB* = 1.0
     DISABLED_GENE_INHERIT_PROB* = 0.75
@@ -30,10 +30,10 @@ type
         mutDiff*: float
         isRecurrent*: bool
     Genotype* = ref object
-        nodes*: seq[NodeGene]
-        knownNodes*: set[uint16]
+        nodes*: seq[NodeGene] = @[]
+        nodeIds*: set[uint16] = {}
         currNode*: int
-        links*: seq[LinkGene]
+        links*: seq[LinkGene] = @[]
         inputs*: int
         outputs*: int
         fitness*: float
@@ -68,9 +68,6 @@ proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
 
 proc newGenotype*(): Genotype =
     result = new Genotype
-    result.nodes = @[]
-    result.knownNodes = {}
-    result.links = @[]
     result.addNodeGene(BIAS, 0)
 
 proc newGenotype*(inputs, outputs: int): Genotype =
@@ -88,9 +85,9 @@ proc addNodeGene*(this: Genotype, nodeType: NType, id: int) =
     when not defined(release):
         if id < 0:
             raise newException(ValueError, "Node id must be positive")
-        if uint16(id) in this.knownNodes:
+        if uint16(id) in this.nodeIds:
             raise newException(ValueError, "Node id already exists")
-    this.knownNodes.incl(uint16(id))
+    this.nodeIds.incl(uint16(id))
     if nodeType == INPUT:
         inc this.inputs
     elif nodeType == OUTPUT:
@@ -119,7 +116,7 @@ proc clone*(this: LinkGene): LinkGene =
     return this.deepCopy()
 
 proc checkNode*(this: Genotype, id: int): bool =
-    return uint16(id) in this.knownNodes
+    return uint16(id) in this.nodeIds
 
 proc sortNodes*(this: Genotype) =
     this.nodes.sort(proc(a, b: NodeGene): int = a.id - b.id)
@@ -247,7 +244,7 @@ proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutT
     var
         gaussPoint: float
         coldGaussPoint: float
-        iter: int
+        iter = 0
     for link in g.links:
         if rand(1.0) > 0.5:
             gaussPoint = 1.0 - chance
@@ -300,7 +297,7 @@ proc mutateToggleEnable*(g: Genotype) =
     if randomGene.enabled:
         for i in 0..g.links.high:
             let gene = g.links[i]
-            var val: bool
+            var val = true
             if gene.src == gene.src and gene.enabled == true and gene.innovation != randomGene.innovation:
                 val = false
                 break
@@ -338,8 +335,8 @@ proc mutateAddLink*(g: Genotype) =
         recursion = rand(1.0) > 0.5
         success = false
         # Found nodes
-        node1: int
-        node2: int
+        node1 = 0
+        node2 = 0
         nGene1: NodeGene
         nGene2: NodeGene
     if recursion:
@@ -449,9 +446,6 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
                 child.addNodeGene(HIDDEN, outNode)
             child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled)
     return child
-
-proc singlepointCrossover(first, second: Genotype): Genotype =
-    discard
 
 proc mating*(first, second: Genotype): Genotype =
     if rand(1.0) < MATE_MULTIPOINT_PROB:
