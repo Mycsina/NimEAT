@@ -4,4 +4,3 @@ nimcache
 *.json
 *.exe
 /bin/
-/tests/

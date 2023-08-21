@@ -66,11 +66,6 @@ proc addLink*(n: Network, src, dst: int, weight: float, enabled: bool) =
     let node = findNode(n, dst)
     if not node.isNil:
         node.ingoing.add l
-    else:
-        echo "Error: tried to add link to non-existent node"
-        for node in n.nodes:
-            echo node.idx
-        echo "adding ", src, " -> ", dst
 
 proc generateNetwork*(g: Genotype): Network =
     result = new(Network)
@@ -98,7 +93,9 @@ proc predict*(n: Network, inputs: seq[float], activation: proc(x: float): float)
             node.activeSum = 0
             node.gotInput = false
             for incoming in node.ingoing:
-                let src = n.nodes[incoming.src]
+                for n in n.nodes:
+                    echo n.idx
+                let src = n.findNode(incoming.src)
                 if not incoming.timeDelay:
                     node.activeSum += src.value * incoming.weight
                     if src.ntype == INPUT or src.gotInput:

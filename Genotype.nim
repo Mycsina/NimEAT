@@ -27,10 +27,12 @@ type
         weight*: float
         innovation*: int
         enabled*: bool
+        mutDiff*: float
         isRecurrent*: bool
-    # store output nodes separately so we can regularly iterate over nodes
     Genotype* = ref object
         nodes*: seq[NodeGene]
+        knownNodes*: set[uint16]
+        currNode*: int
         links*: seq[LinkGene]
         inputs*: int
         outputs*: int
@@ -67,50 +69,57 @@ proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
 proc newGenotype*(): Genotype =
     result = new Genotype
     result.nodes = @[]
+    result.knownNodes = {}
     result.links = @[]
     result.addNodeGene(BIAS, 0)
 
+proc newGenotype*(inputs, outputs: int): Genotype =
+    result = newGenotype()
+    for i in 0 ..< inputs:
+        result.addNodeGene(INPUT)
+    for i in 0 ..< outputs:
+        result.addNodeGene(OUTPUT)
+    result.connect()
+
 proc addNodeGene*(this: Genotype, nodeType: NType, id: int) =
-    let
-        v = newNodeGene(nodeType, id)
+    let v = newNodeGene(nodeType, id)
     this.nodes.add(v)
+    # This should never happen
+    when not defined(release):
+        if id < 0:
+            raise newException(ValueError, "Node id must be positive")
+        if uint16(id) in this.knownNodes:
+            raise newException(ValueError, "Node id already exists")
+    this.knownNodes.incl(uint16(id))
     if nodeType == INPUT:
         inc this.inputs
     elif nodeType == OUTPUT:
         inc this.outputs
     # Connect to bias node if not input
     if (nodeType != INPUT and nodeType != BIAS):
-        discard this.addLinkGene(0, id, 1.0, true)
+        this.addLinkGene(0, id, randWeight(), true)
+    inc this.currNode
 
-proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bool): LinkGene =
+proc addNodeGene*(this: Genotype, nodeType: NType) =
+    this.addNodeGene(nodeType, this.currNode)
+
+proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bool) =
     let l = newLinkGene(src, dst, weight, enabled)
     this.links.add(l)
-    return l
 
-proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bool, innovation: int): LinkGene =
+proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bool, innovation: int) =
     var l = newLinkGene(src, dst, weight, enabled)
     l.innovation = innovation
     this.links.add(l)
-    return l
 
 proc clone*(this: Genotype): Genotype =
-    result = newGenotype()
-    for n in this.nodes:
-        if n.nType != NType.BIAS:
-            result.addNodeGene(n.nType, n.id)
-    for l in this.links:
-        if l.src != 0:
-            discard result.addLinkGene(l.src, l.dst, l.weight, l.enabled, l.innovation)
+    return this.deepCopy()
 
 proc clone*(this: LinkGene): LinkGene =
-    result = newLinkGene(this.src, this.dst, this.weight, this.enabled)
-    result.innovation = this.innovation
+    return this.deepCopy()
 
 proc checkNode*(this: Genotype, id: int): bool =
-    for n in this.nodes:
-        if n.id == id:
-            return true
-    return false
+    return uint16(id) in this.knownNodes
 
 proc sortNodes*(this: Genotype) =
     this.nodes.sort(proc(a, b: NodeGene): int = a.id - b.id)
@@ -154,7 +163,36 @@ proc connect*(this: Genotype) =
     ## Connect all input nodes to all output nodes
     for i in 1..this.inputs:
         for j in this.inputs+1..this.inputs+this.outputs:
-            discard this.addLinkGene(i, j, randWeight(), true)
+            this.addLinkGene(i, j, randWeight(), true)
+
+proc isSameTopology*(a: Genotype, b: Genotype): bool =
+    ## Compare two genotypes
+    if a.nodes.len != b.nodes.len:
+        return false
+    if a.links.len != b.links.len:
+        return false
+    for i in 0..a.nodes.high:
+        if a.nodes[i].id != b.nodes[i].id:
+            return false
+        if a.nodes[i].nType != b.nodes[i].nType:
+            return false
+    for i in 0..a.links.high:
+        if a.links[i].src != b.links[i].src:
+            return false
+        if a.links[i].dst != b.links[i].dst:
+            return false
+    return true
+
+proc isClone*(a: Genotype, b: Genotype): bool =
+    ## Compare two genotypes
+    if isSameTopology(a, b):
+        for i in 0..a.links.high:
+            if a.links[i].weight != b.links[i].weight:
+                return false
+            if a.links[i].enabled != b.links[i].enabled:
+                return false
+        return true
+    return false
 
 proc remove*[T](container: var seq[T], item: T) =
     # Remove an item from a sequence
@@ -167,6 +205,7 @@ proc speciationDistance*(first, second: Genotype): float =
         numDisjoint = 0.0
         numExcess = 0.0
         numMatching = 0.0
+        totalMutDiff = 0.0
     let
         size1 = first.links.len
         size2 = second.links.len
@@ -187,6 +226,8 @@ proc speciationDistance*(first, second: Genotype): float =
             let
                 p1innov = gene1.innovation
                 p2innov = gene2.innovation
+                mutDiff = abs(gene1.mutDiff - gene2.mutDiff)
+            totalMutDiff += mutDiff
             if p1innov == p2innov:
                 numMatching += 1.0
                 i1 += 1
@@ -198,8 +239,8 @@ proc speciationDistance*(first, second: Genotype): float =
                 i2 += 1
                 numDisjoint += 1.0
         inc i
-    result = DISJOINT_COEFF * numDisjoint + EXCESS_COEFF * numExcess + MUTDIFF_COEFF * (numMatching /
-            maxGenomeSize.toFloat)
+    return DISJOINT_COEFF * numDisjoint + EXCESS_COEFF * numExcess + MUTDIFF_COEFF * (totalMutDiff /
+            numMatching)
 
 proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutType) =
     let severe = rand(1.0) > 0.5
@@ -222,8 +263,7 @@ proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutT
         if g.links.len >= 10 and iter > toInt (g.links.len.toFloat * 0.8):
             gaussPoint *= 2
             coldGaussPoint *= 2
-        let
-            randVal = randWeight() * power
+        let randVal = randWeight() * power
         if mutation == GAUSSIAN:
             let choice = rand(1.0)
             if choice > gaussPoint:
@@ -232,6 +272,7 @@ proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutT
                 link.weight = randVal
         elif mutation == COLDGAUSSIAN:
             link.weight = randVal
+        link.mutDiff = randVal
         iter += 1
 
 macro checkLink(): untyped =
@@ -287,8 +328,8 @@ proc mutateAddNode*(g: Genotype) =
         let
             oldWeight = randomGene.weight
         g.addNodeGene(HIDDEN, g.nodes.len)
-        discard g.addLinkGene(randomGene.src, g.nodes[g.nodes.high].id, 1.0, true)
-        discard g.addLinkGene(g.nodes[g.nodes.high].id, randomGene.dst, oldWeight, true)
+        g.addLinkGene(randomGene.src, g.nodes[g.nodes.high].id, 1.0, true)
+        g.addLinkGene(g.nodes[g.nodes.high].id, randomGene.dst, oldWeight, true)
 
 proc mutateAddLink*(g: Genotype) =
     var
@@ -324,10 +365,10 @@ proc mutateAddLink*(g: Genotype) =
             # Check if link already exists
             checkLink()
     if success:
-        let l = g.addLinkGene(node1, node2, randWeight(), true)
-        l.isRecurrent = recursion
+        g.addLinkGene(node1, node2, randWeight(), true)
+        g.links[g.links.high].isRecurrent = recursion
 
-proc innovationCrossover(first, second: Genotype): Genotype =
+proc innovationCrossover*(first, second: Genotype): Genotype =
     let
         fitness1 = first.fitness
         fitness2 = second.fitness
@@ -342,9 +383,9 @@ proc innovationCrossover(first, second: Genotype): Genotype =
         better1 = first.links.len < second.links.len
     else:
         better1 = false
-    ## Add inputs, outputs, and bias to child
+    ## Add inputs, outputs to child
     for node in second.nodes:
-        if node.nType in [INPUT, BIAS, OUTPUT]:
+        if node.nType in [INPUT, OUTPUT]:
             child.addNodeGene(node.nType, node.id)
     var
         fIter, sIter = 0
@@ -366,13 +407,16 @@ proc innovationCrossover(first, second: Genotype): Genotype =
             let
                 fInnov = first.links[fIter].innovation
                 sInnov = second.links[sIter].innovation
+                fLink = first.links[fIter]
+                sLink = second.links[sIter]
             if fInnov == sInnov:
-                ## If same innovation number, randomly choose one
-                if rand(1.0) > 0.5:
-                    chosenLink = first.links[fIter].clone()
-                else:
-                    chosenLink = second.links[sIter].clone()
-                if first.links[fIter].enabled == false or second.links[sIter].enabled == false:
+                # Clone first link
+                chosenLink = fLink.clone()
+                # Average weights
+                chosenLink.weight = (fLink.weight + sLink.weight) / 2
+                # Average mutDiff
+                chosenLink.mutDiff = (fLink.mutDiff + sLink.mutDiff) / 2
+                if fLink.enabled == false or sLink.enabled == false:
                     if rand(1.0) < DISABLED_GENE_INHERIT_PROB:
                         child.links[child.links.high].enabled = false
                 inc fIter
@@ -403,7 +447,7 @@ proc innovationCrossover(first, second: Genotype): Genotype =
                 child.addNodeGene(HIDDEN, inNode)
             if not child.checkNode(outNode):
                 child.addNodeGene(HIDDEN, outNode)
-            discard child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled)
+            child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled)
     return child
 
 proc singlepointCrossover(first, second: Genotype): Genotype =
@@ -413,4 +457,5 @@ proc mating*(first, second: Genotype): Genotype =
     if rand(1.0) < MATE_MULTIPOINT_PROB:
         return innovationCrossover(first, second)
     else:
-        return singlepointCrossover(first, second)
+        # TODO: Implement singlepoint crossover
+        return innovationCrossover(first, second)
