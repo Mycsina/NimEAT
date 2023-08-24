@@ -2,26 +2,11 @@ import std/[algorithm, math, random]
 
 import Genotype
 import Network
+import Params
 
 var
-    COMPAT_THRESHOLD* = 3.0
+    CURR_IND* = 0
     CURR_SPECIES* = 0
-    DROPOFF_AGE* = 10
-    # How much should young species be protected
-    AGE_SIGNIFICANCE* = 1.0
-    SURVIVAL_THRESHOLD* = 0.2
-var
-    INTERSPECIES_MATE_RATE* = 0.001
-var
-    MUT_ADD_LINK_PROB* = 0.1
-    MUT_ADD_NODE_PROB* = 0.0025
-    MUT_WEIGHT_POWER* = 1.0
-    MUT_WEIGHT_PROB* = 0.9
-    MUT_ONLY_PROB* = 0.25
-    MUT_TOGGLE_PROB* = 0.00
-    MUT_REENABLE_PROB* = 0.00
-var
-    CURR_IND = 0
 
 type
     Species* = ref object

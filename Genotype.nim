@@ -1,19 +1,12 @@
 {.experimental: "codeReordering".}
 
-import std/[algorithm, tables, random, sequtils, sets, macros]
+import std/[algorithm, tables, random, sets, macros]
 
 import nimgraphviz
 
+import Params
+
 randomize()
-
-var
-    DISJOINT_COEFF* = 1.0
-    EXCESS_COEFF* = 1.0
-    MUTDIFF_COEFF* = 2.0
-var
-    MATE_MULTIPOINT_PROB* = 1.0
-    DISABLED_GENE_INHERIT_PROB* = 0.75
-
 
 type
     NType* = enum

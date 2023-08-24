@@ -4,22 +4,10 @@ import std/[algorithm, math, random]
 
 import Genotype
 import Species
+import Params
+
 
 randomize()
-
-var
-    POP_SIZE* = 256
-var
-    REGULAR_CULLING_AGE* = 10
-    REGULAR_CULLING_INTERVAL* = 5
-var
-    ENFORCED_DIVERSITY* = true
-    DIVERSITY_TARGET* = 5
-    COMPAT_THRESHOLD* = 3.0
-    COMPATIBILITY_MODIFIER* = 0.3
-var
-    BABIES_STOLEN* = 0
-    MATE_ONLY_PROB* = 0.2
 
 type
     Population* = ref object
@@ -32,12 +20,18 @@ type
         winnerGen*: int
         highestFitness*: float
         ageSinceLastImprovement*: int
+    advanceHooks* = ref object
+        ## Hooks to be called when advancing a generation
+        ## Useful to change behaviour of the algorithm
+        ## without changing the source code
+
 
 
 proc newPopulation*(): Population =
     result = new(Population)
     result.species = @[]
     result.population = @[]
+    result.currentGeneration = 1
 
 proc spawn*(p: Population, g: Genotype) =
     ## Spawns an initial population from a base genotype
@@ -68,7 +62,7 @@ proc speciate*(p: Population) =
                 p.species.add(species)
                 species.addOrganism(o)
 
-proc advanceGeneration*(p: Population) =
+proc advanceGeneration*(p: Population, ) =
     ## Advances the population to the next generation
     let newGen = p.currentGeneration + 1
     echo "Generation ", p.currentGeneration
@@ -178,12 +172,8 @@ proc expectedOffspring*(p: Population) =
     # Give any babies lost due to floating point errors to the
     # best Species
     if totalExpected < p.population.len:
-        var finalExpected = 0
         let
             bestSpecies = p.species[0]
-        for s in p.species:
-            finalExpected += s.expectedOffspring
-        echo totalExpected, finalExpected
         inc bestSpecies.expectedOffspring
         # If there does happen to be a problem, assign all
         # offspring to the best Species
@@ -227,6 +217,9 @@ proc cullSpecies*(p: Population) =
         let o = p.population[i]
         if o.toDie:
             o.species.members.delete(o.speciesPos)
+            if o.species.members.len == 0:
+                # We are sorting right after so we can do this safely
+                p.species.del(p.species.find(o.species))
             discard p.population.pop()
 
 proc reproduce*(p: Population) =
@@ -328,7 +321,7 @@ proc sortSpecies*(p: Population) =
     ##
     ## Expects species' members to be sorted
     for s in p.species:
-        assert s.members.isSorted(memberCmp) == true
+        assert s.members.isSorted(organismCmp) == true
     p.species.sort(speciesCmp)
 
 proc averageFitness*(p: Population): float =

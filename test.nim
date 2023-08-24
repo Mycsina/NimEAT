@@ -17,7 +17,7 @@ import Species
 
 import nimgraphviz
 
-randomize(0)
+randomize()
 
 proc xorEvaluate(o: Organism): bool =
     let inputs = @[
@@ -38,7 +38,7 @@ proc xorEvaluate(o: Organism): bool =
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
     o.fitness = (4.0 - error).pow 2.0
-    if error < 1 or o.fitness > 7.5:
+    if error < 1 or o.fitness >= 8.8:
         winner = true
     else:
         winner = false
