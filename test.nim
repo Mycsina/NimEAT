@@ -1,6 +1,14 @@
-import std/[math, jsonutils, json, random]
+import std/[math, jsonutils, json, random, os]
+import fusion/[ioutils]
 
-import nimprof
+when defined(debug):
+    import nimprof
+    let tmpFileName = "output.txt"
+    let stdoutFileno = stdout.getFileHandle()
+    let tmpFile = open(tmpFileName, fmWrite)
+    let tmpFileFd = tmpFile.getFileHandle()
+    duplicateTo(tmpFileFd, stdoutFileno)
+    tmpFile.close()
 
 import Genotype
 import Network
@@ -8,6 +16,8 @@ import Population
 import Species
 
 import nimgraphviz
+
+randomize(0)
 
 proc xorEvaluate(o: Organism): bool =
     let inputs = @[
@@ -28,7 +38,7 @@ proc xorEvaluate(o: Organism): bool =
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
     o.fitness = (4.0 - error).pow 2.0
-    if error < 0.1 or (o.fitness > 7.5):
+    if error < 1 or o.fitness > 7.5:
         winner = true
     else:
         winner = false
@@ -51,6 +61,7 @@ proc xorTest() =
                 break
         p.advanceGeneration()
     echo "Winner found in generation ", p.currentGeneration
+    echo "Fitness: ", p.population[0].originalFitness
     p.population[0].net.blueprint.toGraph().exportImage("xor_winner.png")
     "xor_winner.json".open(fmWrite).write p.population[0].net.blueprint.toJson()
 

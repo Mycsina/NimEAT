@@ -7,6 +7,7 @@ var
     COMPAT_THRESHOLD* = 3.0
     CURR_SPECIES* = 0
     DROPOFF_AGE* = 10
+    # How much should young species be protected
     AGE_SIGNIFICANCE* = 1.0
     SURVIVAL_THRESHOLD* = 0.2
 var
@@ -19,6 +20,8 @@ var
     MUT_ONLY_PROB* = 0.25
     MUT_TOGGLE_PROB* = 0.00
     MUT_REENABLE_PROB* = 0.00
+var
+    CURR_IND = 0
 
 type
     Species* = ref object
@@ -26,7 +29,7 @@ type
         members*: seq[Organism]
         representative*: Organism
         topFitness*: float
-        historicalTopFitness*: float
+        bestEverFitness*: float
         averageFitness*: float
         expectedOffspring*: int
         parentNumber*: int
@@ -36,8 +39,9 @@ type
         extinct*: bool
         novel*: bool
     Organism* = ref object
-        fitness*: float
-        originalFitness*: float
+        id*: int
+        fitness* = 0.0
+        originalFitness* = 0.0
         winner*: bool
         net*: Network
         species*: Species
@@ -47,6 +51,13 @@ type
         isLeader*: bool
         isChampion*: bool
         toDie*: bool
+        # Optimization
+        speciesPos*: int
+
+proc addOrganism*(s: Species, o: Organism) =
+    s.members.add(o)
+    o.species = s
+    o.speciesPos = s.members.high
 
 proc newSpecies*(representative: Organism): Species =
     result = new Species
@@ -67,10 +78,12 @@ proc newSpecies*(representative: Organism, id: int): Species =
 proc newOrganism*(g: Genotype, fit: float, gen: int): Organism =
     result = new Organism
     result.genome = g.clone()
+    result.id = CURR_IND
     result.fitness = fit
     result.originalFitness = fit
     result.generation = gen
     result.net = g.generateNetwork()
+    inc CURR_IND
 
 proc recreate*(o: Organism) =
     o.net = o.genome.generateNetwork()
@@ -83,37 +96,46 @@ proc findChampion*(s: Species): Organism =
             champion = g
     return champion
 
+proc organismCmp*(a, b: Organism): int =
+    ## Organism comparison function
+    if a.fitness > b.fitness: return -1
+    if a.fitness < b.fitness: return 1
+    return 0
+
 proc sortMembers*(s: Species) =
-    s.members.sort(proc(a, b: Organism): int =
-        if a.fitness > b.fitness: return -1
-        if a.fitness < b.fitness: return 1
-        return 0)
+    ## Sort a species' members
+    s.members.sort(organismCmp)
 
 proc adjustFitness*(s: Species) =
-    # Adjust fitness based on species age, sharing fitness amongst members
+    ## Adjust fitness based on species age, sharing fitness amongst members.
     var ageDebt = s.age - s.ageLastImproved + 1 - DROPOFF_AGE
     if ageDebt == 0:
-        inc ageDebt
+        ageDebt = 1
     for o in s.members:
         o.originalFitness = o.fitness
-        if ageDebt >= 1:
+        # If the species is stagnated or is the worst one
+        if ageDebt >= 1 or s.extinct:
             o.fitness *= 0.01
+        # Boost young species
         if s.age <= 10:
             o.fitness *= AGE_SIGNIFICANCE
+        # Fitness must be positive
         if o.fitness < 0.0:
             o.fitness = 0.0001
+        # Share fitness with species
         o.fitness /= s.members.len.toFloat
     s.sortMembers()
+    # Update ageLastImproved
     let mostFit = s.members[0]
-    if mostFit.fitness > s.historicalTopFitness:
+    if mostFit.originalFitness > s.bestEverFitness:
         s.ageLastImproved = s.age
-        s.historicalTopFitness = mostFit.originalFitness
+        s.bestEverFitness = mostFit.originalFitness
     mostFit.isLeader = true
 
 proc markForDeath*(s: Species) =
-    # Mark underperforming organisms for death
-    s.parentNumber = toInt floor(SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.toFloat)
-    for i in s.parentNumber..s.members.high:
+    ## Marks organisms not able to be parents to die.
+    s.parentNumber = toInt floor(SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
+    for i in (s.parentNumber - 1)..s.members.high:
         s.members[i].toDie = true
 
 proc structuralMutation*(g: Genotype): bool =

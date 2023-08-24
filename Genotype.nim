@@ -47,7 +47,7 @@ proc resetInnovation*() =
     INNO_CONST = 1
     SEEN_INNO = newTable[(int, int), int]()
 
-proc newNodeGene*(nodeType: NType, id: int): NodeGene =
+func newNodeGene*(nodeType: NType, id: int): NodeGene =
     result = new NodeGene
     result.nType = nodeType
     result.id = id
@@ -109,26 +109,26 @@ proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bo
     l.innovation = innovation
     this.links.add(l)
 
-proc clone*(this: Genotype): Genotype =
+func clone*(this: Genotype): Genotype =
     return this.deepCopy()
 
-proc clone*(this: LinkGene): LinkGene =
+func clone*(this: LinkGene): LinkGene =
     return this.deepCopy()
 
-proc checkNode*(this: Genotype, id: int): bool =
+func checkNode*(this: Genotype, id: int): bool =
     return uint16(id) in this.nodeIds
 
 proc sortNodes*(this: Genotype) =
     this.nodes.sort(proc(a, b: NodeGene): int = a.id - b.id)
 
-proc sortInnovation*(this: Genotype) =
+func sortInnovation*(this: Genotype) =
     this.links.sort(proc(a, b: LinkGene): int = a.innovation - b.innovation)
 
-proc sortTopology*(this: Genotype) =
+func sortTopology*(this: Genotype) =
     this.sortNodes()
     this.sortInnovation()
 
-proc toGraph*(this: Genotype): Graph[Edge] =
+func toGraph*(this: Genotype): Graph[Edge] =
     var graph = newGraph[Edge]()
     for link in this.links:
         if link.enabled:
@@ -162,7 +162,7 @@ proc connect*(this: Genotype) =
         for j in this.inputs+1..this.inputs+this.outputs:
             this.addLinkGene(i, j, randWeight(), true)
 
-proc isSameTopology*(a: Genotype, b: Genotype): bool =
+func isSameTopology*(a: Genotype, b: Genotype): bool =
     ## Compare two genotypes
     if a.nodes.len != b.nodes.len:
         return false
@@ -180,7 +180,7 @@ proc isSameTopology*(a: Genotype, b: Genotype): bool =
             return false
     return true
 
-proc isClone*(a: Genotype, b: Genotype): bool =
+func isClone*(a: Genotype, b: Genotype): bool =
     ## Compare two genotypes
     if isSameTopology(a, b):
         for i in 0..a.links.high:
@@ -190,12 +190,6 @@ proc isClone*(a: Genotype, b: Genotype): bool =
                 return false
         return true
     return false
-
-proc remove*[T](container: var seq[T], item: T) =
-    # Remove an item from a sequence
-    var idx = container.find(item)
-    if idx != -1:
-        container.delete(idx)
 
 proc speciationDistance*(first, second: Genotype): float =
     var
@@ -306,7 +300,7 @@ proc mutateToggleEnable*(g: Genotype) =
     else:
         randomGene.enabled = true
 
-proc mutateReenable*(g: Genotype) =
+func mutateReenable*(g: Genotype) =
     for link in g.links:
         if not link.enabled:
             link.enabled = true
