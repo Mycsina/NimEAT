@@ -6,7 +6,6 @@ import Genotype
 import Species
 import Params
 
-
 randomize()
 
 type
@@ -20,11 +19,6 @@ type
         winnerGen*: int
         highestFitness*: float
         ageSinceLastImprovement*: int
-    advanceHooks* = ref object
-        ## Hooks to be called when advancing a generation
-        ## Useful to change behaviour of the algorithm
-        ## without changing the source code
-
 
 
 proc newPopulation*(): Population =
@@ -35,7 +29,7 @@ proc newPopulation*(): Population =
 
 proc spawn*(p: Population, g: Genotype) =
     ## Spawns an initial population from a base genotype
-    for i in 0 .. POP_SIZE:
+    for i in 0 .. param.POP_SIZE:
         let g = g.clone()
         g.connect()
         g.mutateLinkWeights(1, 1, COLDGAUSSIAN)
@@ -54,7 +48,7 @@ proc speciate*(p: Population) =
         else:
             for s in p.species:
                 let distance = o.genome.speciationDistance(s.representative.genome)
-                if distance < COMPAT_THRESHOLD:
+                if distance < param.COMPAT_THRESHOLD:
                     s.addOrganism(o)
                     break
             if o.species == nil:
@@ -67,25 +61,28 @@ proc advanceGeneration*(p: Population, ) =
     let newGen = p.currentGeneration + 1
     echo "Generation ", p.currentGeneration
     echo "Population: ", p.population.len
-    if ENFORCED_DIVERSITY:
-        if p.species.len < DIVERSITY_TARGET:
-            COMPAT_THRESHOLD -= COMPATIBILITY_MODIFIER
-        elif p.species.len > DIVERSITY_TARGET:
-            COMPAT_THRESHOLD += COMPATIBILITY_MODIFIER
-        if COMPAT_THRESHOLD < 0.3:
-            COMPAT_THRESHOLD = 0.3
+    if param.ENFORCED_DIVERSITY:
+        if p.species.len < param.DIVERSITY_TARGET:
+            param.COMPAT_THRESHOLD -= param.COMPATIBILITY_MODIFIER
+        elif p.species.len > param.DIVERSITY_TARGET:
+            param.COMPAT_THRESHOLD += param.COMPATIBILITY_MODIFIER
+        if param.COMPAT_THRESHOLD < 0.3:
+            param.COMPAT_THRESHOLD = 0.3
     for s in p.species:
         s.sortMembers()
     p.sortSpecies()
-    ## Eliminates old, low performing species every x generations
-    ## Expects species to be sorted
+    ## Flag the lowest performing species
     for i in countdown(p.species.high, 0):
-        if p.species[i].age >= REGULAR_CULLING_AGE:
-            if p.currentGeneration mod REGULAR_CULLING_INTERVAL == 0:
+        ## If age is above the threshold
+        if p.species[i].age >= param.REGULAR_CULLING_AGE:
+            ## If we're in the interval
+            if p.currentGeneration mod param.REGULAR_CULLING_INTERVAL == 0:
+                ## Mark for death
                 p.species[i].extinct = true
+                break
     echo "Species: ", p.species.len
     when defined(debug):
-        echo "Compatibility threshold: ", COMPAT_THRESHOLD
+        echo "Compatibility threshold: ", param.COMPAT_THRESHOLD
     for s in p.species:
         s.adjustFitness()
         s.markForDeath()
@@ -102,9 +99,9 @@ proc advanceGeneration*(p: Population, ) =
         echo "New champion! Fitness: ", p.highestFitness
     else:
         p.ageSinceLastImprovement += 1
-    if p.ageSinceLastImprovement >= 5 + DROPOFF_AGE:
+    if p.ageSinceLastImprovement >= 5 + param.DROPOFF_AGE:
         p.deltaCoding()
-    elif BABIES_STOLEN > 0:
+    elif param.BABIES_STOLEN > 0:
         ## TODO: implement baby stealing
         discard
     p.cullSpecies()
@@ -138,7 +135,7 @@ proc advanceGeneration*(p: Population, ) =
         # Print out species information
         when defined(debug):
             if s.members.len > 0:
-                echo "Species ", s.id, " age: ", s.age, " fitness: ", s.members[0].originalFitness, " size: ", s.members.len
+                echo "Species ", s.id, ": age: ", s.age, " fitness: ", s.members[0].originalFitness, " size: ", s.members.len
             else:
                 echo "Species ", s.id, " died"
 
@@ -186,7 +183,7 @@ proc expectedOffspring*(p: Population) =
 proc deltaCoding*(p: Population) =
     ## Assign offspring to the leaders of the two best species
     let
-        halfPop = POP_SIZE / 2
+        halfPop = param.POP_SIZE / 2
         bestSpecies = p.species[0]
         champion = bestSpecies.members[0]
     var
@@ -216,11 +213,11 @@ proc cullSpecies*(p: Population) =
     for i in countdown(p.population.high, 0):
         let o = p.population[i]
         if o.toDie:
-            o.species.members.delete(o.speciesPos)
+            o.species.members.del(o.species.members.find(o))
             if o.species.members.len == 0:
                 # We are sorting right after so we can do this safely
                 p.species.del(p.species.find(o.species))
-            discard p.population.pop()
+            p.population.del(i)
 
 proc reproduce*(p: Population) =
     ## Reproduce all organisms marked for reproduction
@@ -243,8 +240,8 @@ proc reproduce*(s: Species, p: Population) =
         if leader.isChampion and leader.expectedOffspring > 0:
             var cloneGenome = leader.genome.clone()
             if leader.expectedOffspring > 1:
-                if rand(1.0) < 0.8 or MUT_ADD_LINK_PROB == 0.0:
-                    cloneGenome.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
+                if rand(1.0) < 0.8 or param.MUT_ADD_LINK_PROB == 0.0:
+                    cloneGenome.mutateLinkWeights(1.0, param.MUT_WEIGHT_POWER, GAUSSIAN)
                 else:
                     cloneGenome.mutateAddLink()
             baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
@@ -254,7 +251,7 @@ proc reproduce*(s: Species, p: Population) =
             var cloneGenome = leader.genome.clone()
             baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
             keptLeader = true
-        elif rand(1.0) < MUT_ONLY_PROB or s.members.len == 1:
+        elif rand(1.0) < param.MUT_ONLY_PROB or s.members.len == 1:
             ## If we choose to mutate/there's only us left
             var
                 randomParent = s.members[rand(s.members.high)]
@@ -268,7 +265,7 @@ proc reproduce*(s: Species, p: Population) =
                 mom = s.members[rand(s.members.high)]
             var dad: Organism
             ## Decide if we mate with our own species or another
-            if rand(1.0) > INTERSPECIES_MATE_RATE:
+            if rand(1.0) > param.INTERSPECIES_MATE_RATE:
                 ## Mate within species
                 dad = s.members[rand(s.members.high)]
             else:
@@ -290,7 +287,7 @@ proc reproduce*(s: Species, p: Population) =
                         randSpecies = p.species[randSpeciesIdx]
                 dad = randSpecies.members[0]
             var newGenome = mating(mom.genome, dad.genome)
-            if rand(1.0) > MATE_ONLY_PROB:
+            if rand(1.0) > param.MATE_ONLY_PROB:
                 ## Randomly mutate the baby, or always if parents are the same.
                 mutate(newGenome)
             baby = newOrganism(newGenome, 0.0, p.currentGeneration + 1)
@@ -302,7 +299,7 @@ proc reproduce*(s: Species, p: Population) =
         else:
             for s in p.species:
                 let distance = baby.genome.speciationDistance(s.representative.genome)
-                if distance < COMPAT_THRESHOLD:
+                if distance < param.COMPAT_THRESHOLD:
                     s.addOrganism(baby)
                     break
             if baby.species == nil:
@@ -320,11 +317,13 @@ proc sortSpecies*(p: Population) =
     ## Sorts species in population by fittest organism
     ##
     ## Expects species' members to be sorted
+    ## When run without -d:danger, it checks that the members are sorted
     for s in p.species:
         assert s.members.isSorted(organismCmp) == true
     p.species.sort(speciesCmp)
 
 proc averageFitness*(p: Population): float =
+    ## Returns the average fitness of the population
     var total = 0.0
     for o in p.population:
         total += o.fitness

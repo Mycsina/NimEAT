@@ -185,6 +185,7 @@ func isClone*(a: Genotype, b: Genotype): bool =
     return false
 
 proc speciationDistance*(first, second: Genotype): float =
+    ## Calculate the speciation distance between two genotypes
     var
         numDisjoint = 0.0
         numExcess = 0.0
@@ -223,7 +224,8 @@ proc speciationDistance*(first, second: Genotype): float =
                 i2 += 1
                 numDisjoint += 1.0
         inc i
-    return DISJOINT_COEFF * numDisjoint + EXCESS_COEFF * numExcess + MUTDIFF_COEFF * (totalMutDiff /
+    return param.DISJOINT_COEFF * numDisjoint + param.EXCESS_COEFF * numExcess + param.MUTDIFF_COEFF * (
+            totalMutDiff /
             numMatching)
 
 proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutType) =
@@ -401,7 +403,7 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
                 # Average mutDiff
                 chosenLink.mutDiff = (fLink.mutDiff + sLink.mutDiff) / 2
                 if fLink.enabled == false or sLink.enabled == false:
-                    if rand(1.0) < DISABLED_GENE_INHERIT_PROB:
+                    if rand(1.0) < param.DISABLED_GENE_INHERIT_PROB:
                         child.links[child.links.high].enabled = false
                 inc fIter
                 inc sIter
@@ -435,7 +437,7 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
     return child
 
 proc mating*(first, second: Genotype): Genotype =
-    if rand(1.0) < MATE_MULTIPOINT_PROB:
+    if rand(1.0) < param.MATE_MULTIPOINT_PROB:
         return innovationCrossover(first, second)
     else:
         # TODO: Implement singlepoint crossover

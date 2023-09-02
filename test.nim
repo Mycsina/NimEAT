@@ -14,6 +14,10 @@ import Genotype
 import Network
 import Population
 import Species
+import Params
+
+param.setPopSize(215)
+param.setEnforcedDiversity(false)
 
 import nimgraphviz
 
@@ -38,7 +42,7 @@ proc xorEvaluate(o: Organism): bool =
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
     o.fitness = (4.0 - error).pow 2.0
-    if error < 1 or o.fitness >= 8.8:
+    if o.fitness > 9.0:
         winner = true
     else:
         winner = false
@@ -61,7 +65,6 @@ proc xorTest() =
                 break
         p.advanceGeneration()
     echo "Winner found in generation ", p.currentGeneration
-    echo "Fitness: ", p.population[0].originalFitness
     p.population[0].net.blueprint.toGraph().exportImage("xor_winner.png")
     "xor_winner.json".open(fmWrite).write p.population[0].net.blueprint.toJson()
 

@@ -40,6 +40,7 @@ type
         speciesPos*: int
 
 proc addOrganism*(s: Species, o: Organism) =
+    ## Add an organism to a species
     s.members.add(o)
     o.species = s
     o.speciesPos = s.members.high
@@ -93,7 +94,7 @@ proc sortMembers*(s: Species) =
 
 proc adjustFitness*(s: Species) =
     ## Adjust fitness based on species age, sharing fitness amongst members.
-    var ageDebt = s.age - s.ageLastImproved + 1 - DROPOFF_AGE
+    var ageDebt = s.age - s.ageLastImproved + 1 - param.DROPOFF_AGE
     if ageDebt == 0:
         ageDebt = 1
     for o in s.members:
@@ -103,7 +104,7 @@ proc adjustFitness*(s: Species) =
             o.fitness *= 0.01
         # Boost young species
         if s.age <= 10:
-            o.fitness *= AGE_SIGNIFICANCE
+            o.fitness *= param.AGE_SIGNIFICANCE
         # Fitness must be positive
         if o.fitness < 0.0:
             o.fitness = 0.0001
@@ -119,28 +120,28 @@ proc adjustFitness*(s: Species) =
 
 proc markForDeath*(s: Species) =
     ## Marks organisms not able to be parents to die.
-    s.parentNumber = toInt floor(SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
+    s.parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
     for i in (s.parentNumber - 1)..s.members.high:
         s.members[i].toDie = true
 
 proc structuralMutation*(g: Genotype): bool =
     ## Mutate the genome's structure
     var val = true
-    if rand(1.0) < MUT_ADD_NODE_PROB:
+    if rand(1.0) < param.MUT_ADD_NODE_PROB:
         g.mutateAddNode()
         val = false
-    elif rand(1.0) < MUT_ADD_LINK_PROB:
+    elif rand(1.0) < param.MUT_ADD_LINK_PROB:
         g.mutateAddLink()
         val = false
     return val
 
 proc connectionMutation*(g: Genotype) =
     ## Mutate the genome's connection weights
-    if rand(1.0) < MUT_WEIGHT_PROB:
-        g.mutateLinkWeights(1.0, MUT_WEIGHT_POWER, GAUSSIAN)
-    if rand(1.0) < MUT_TOGGLE_PROB:
+    if rand(1.0) < param.MUT_WEIGHT_PROB:
+        g.mutateLinkWeights(1.0, param.MUT_WEIGHT_POWER, GAUSSIAN)
+    if rand(1.0) < param.MUT_TOGGLE_PROB:
         g.mutateToggleEnable()
-    if rand(1.0) < MUT_REENABLE_PROB:
+    if rand(1.0) < param.MUT_REENABLE_PROB:
         g.mutateReenable()
 
 proc mutate*(g: Genotype) =
