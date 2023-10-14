@@ -12,7 +12,7 @@ proc toJsonHook*(s: Species): JsonNode =
         result["members"].add(toJson(member))
     result["representative"] = toJson(s.representative)
     result["topFitness"] = toJson(s.topFitness)
-    result["historicalTopFitness"] = toJson(s.historicalTopFitness)
+    result["bestEverFitness"] = toJson(s.bestEverFitness)
     result["averageFitness"] = toJson(s.averageFitness)
     result["expectedOffspring"] = toJson(s.expectedOffspring)
     result["parentNumber"] = toJson(s.parentNumber)
@@ -27,15 +27,12 @@ proc toJsonHook*(p: Population): JsonNode =
     result["species"] = newJArray()
     for species in p.species:
         result["species"].add(toJson(species))
-    result["species"] = newJArray()
-    for species in p.species:
-        result["species"].add(toJson(species))
     result["meanFitness"] = toJson(p.meanFitness)
     result["variance"] = toJson(p.variance)
     result["stdDev"] = toJson(p.stdDev)
     result["winnerGen"] = toJson(p.winnerGen)
     result["highestFitness"] = toJson(p.highestFitness)
-    result["ageSinceLastImprovement"] = toJson(p.ageSinceLastImprovement)
+    result["ageSinceImprovement"] = toJson(p.ageSinceImprovement)
 
 
 proc toJsonHook*(n: NodeGene): JsonNode =
@@ -68,7 +65,7 @@ proc toJsonHook*(g: Genotype): JsonNode =
 proc toJsonHook*(n: Node): JsonNode =
     result = newJObject()
     result["ntype"] = toJson(n.ntype)
-    result["idx"] = toJson(n.idx)
+    result["idx"] = toJson(n.id)
     result["value"] = toJson(n.value)
     result["activeSum"] = toJson(n.activeSum)
     result["gotInput"] = toJson(n.gotInput)

@@ -15,6 +15,24 @@
                 "cwd": "${workspaceRoot}"
             },
             "type": "shell",
+        },
+        {
+            "label": "Run module.nim",
+            "command": "nim",
+            "args": [
+                "c",
+                "-o:bin/${fileBasenameNoExtension}",
+                "-r",
+                "${fileBasename}"
+            ],
+            "options": {
+                "cwd": "${workspaceRoot}"
+            },
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
     ]
 }

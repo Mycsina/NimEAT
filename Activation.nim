@@ -1,5 +1,8 @@
 import std/[math]
 
+proc linear*(x: float): float =
+    return x
+
 proc heaviside*(x: float): float =
     if x < 0.0:
         return 0.0

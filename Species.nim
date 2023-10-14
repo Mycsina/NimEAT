@@ -1,12 +1,8 @@
-import std/[algorithm, math, random]
+import std/[algorithm, math]
 
 import Genotype
 import Network
 import Params
-
-var
-    CURR_IND* = 0
-    CURR_SPECIES* = 0
 
 type
     Species* = ref object
@@ -36,22 +32,21 @@ type
         isLeader*: bool
         isChampion*: bool
         toDie*: bool
-        # Optimization
-        speciesPos*: int
+
+var
+    CURR_IND* = 0
 
 proc addOrganism*(s: Species, o: Organism) =
     ## Add an organism to a species
     s.members.add(o)
     o.species = s
-    o.speciesPos = s.members.high
 
 proc newSpecies*(representative: Organism): Species =
     result = new Species
     result.members = @[]
-    result.id = CURR_SPECIES
     result.representative = representative
     result.novel = true
-    inc CURR_SPECIES
+    result.addOrganism(representative)
 
 proc newSpecies*(representative: Organism, id: int): Species =
     result = new Species
@@ -59,7 +54,6 @@ proc newSpecies*(representative: Organism, id: int): Species =
     result.id = id
     result.representative = representative
     result.novel = true
-    inc CURR_SPECIES
 
 proc newOrganism*(g: Genotype, fit: float, gen: int): Organism =
     result = new Organism
@@ -87,6 +81,11 @@ proc organismCmp*(a, b: Organism): int =
     if a.fitness > b.fitness: return -1
     if a.fitness < b.fitness: return 1
     return 0
+
+proc `==`*(a, b: Species): bool =
+    ## Species comparison function
+    if not a.isNil and not b.isNil:
+        return speciationDistance(a.representative.genome, b.representative.genome) < param.COMPAT_THRESHOLD
 
 proc sortMembers*(s: Species) =
     ## Sort a species' members
@@ -123,31 +122,6 @@ proc markForDeath*(s: Species) =
     s.parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
     for i in (s.parentNumber - 1)..s.members.high:
         s.members[i].toDie = true
-
-proc structuralMutation*(g: Genotype): bool =
-    ## Mutate the genome's structure
-    var val = true
-    if rand(1.0) < param.MUT_ADD_NODE_PROB:
-        g.mutateAddNode()
-        val = false
-    elif rand(1.0) < param.MUT_ADD_LINK_PROB:
-        g.mutateAddLink()
-        val = false
-    return val
-
-proc connectionMutation*(g: Genotype) =
-    ## Mutate the genome's connection weights
-    if rand(1.0) < param.MUT_WEIGHT_PROB:
-        g.mutateLinkWeights(1.0, param.MUT_WEIGHT_POWER, GAUSSIAN)
-    if rand(1.0) < param.MUT_TOGGLE_PROB:
-        g.mutateToggleEnable()
-    if rand(1.0) < param.MUT_REENABLE_PROB:
-        g.mutateReenable()
-
-proc mutate*(g: Genotype) =
-    ## Mutate either the genome's structure or its connection weights
-    if not structuralMutation(g):
-        connectionMutation(g)
 
 proc calculateAvgFitness*(s: Species) =
     var total = 0.0

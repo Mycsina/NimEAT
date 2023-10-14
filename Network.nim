@@ -7,7 +7,7 @@ import nimgraphviz
 
 type
     Node* = ref object
-        idx*: int
+        id*: int
         ntype*: NType
         ingoing*: seq[Link]
         value*: float
@@ -33,7 +33,7 @@ type
 proc newNode*(ntype: NType, id: int): Node =
     result = new(Node)
     result.ntype = ntype
-    result.idx = id
+    result.id = id
     result.ingoing = newSeq[Link]()
     result.lastValues = newSeq[float](2)
 
@@ -44,19 +44,22 @@ proc newLink*(src, dst: int, weight: float, enabled: bool): Link =
     result.weight = weight
     result.enabled = enabled
 
+proc addNode*(p: Network, node: Node) =
+    if node.ntype == BIAS:
+        node.value = 1
+    elif node.ntype == INPUT:
+        p.inputs.add node
+    elif node.ntype == OUTPUT:
+        p.outputs.add node
+    p.nodes.add node
+
 proc addNode*(p: Network, nodeType: NType, id: int) =
     var n = newNode(nodeType, id)
-    if n.ntype == BIAS:
-        n.value = 1
-    elif nodeType == INPUT:
-        p.inputs.add n
-    elif nodeType == OUTPUT:
-        p.outputs.add n
-    p.nodes.add n
+    p.addNode(n)
 
 proc findNode*(n: Network, id: int): Node =
     for node in n.nodes:
-        if node.idx == id:
+        if node.id == id:
             return node
     return nil
 
@@ -85,7 +88,6 @@ proc outputsOff*(n: Network): bool =
     return false
 
 proc predict*(n: Network, inputs: seq[float], activation: proc(x: float): float): seq[float] =
-    # while outputsOff(n):
     for i in 0 ..< inputs.len:
         n.inputs[i].value = inputs[i]
     for node in n.nodes:
@@ -100,8 +102,6 @@ proc predict*(n: Network, inputs: seq[float], activation: proc(x: float): float)
                         node.gotInput = true
                 else:
                     node.activeSum += incoming.weight * src.lastValues[0]
-    for node in n.nodes:
-        if node.ntype != INPUT:
             if node.gotInput:
                 node.lastValues[1] = node.lastValues[0]
                 node.lastValues[0] = node.value

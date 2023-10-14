@@ -1,8 +1,10 @@
 import std/[math, jsonutils, json, random, os]
 import fusion/[ioutils]
 
+## TODO INVESTIGATE WHY ONLY THE FIRST 2 SPECIES ARE EVER SURVIVING
+
 when defined(debug):
-    import nimprof
+    #import nimprof
     let tmpFileName = "output.txt"
     let stdoutFileno = stdout.getFileHandle()
     let tmpFile = open(tmpFileName, fmWrite)
@@ -16,12 +18,13 @@ import Population
 import Species
 import Params
 
-param.setPopSize(215)
+param.setPopSize(512)
 param.setEnforcedDiversity(false)
+param.setAgeSignificance(3)
 
 import nimgraphviz
 
-randomize()
+randomize(2)
 
 proc xorEvaluate(o: Organism): bool =
     let inputs = @[
@@ -36,17 +39,12 @@ proc xorEvaluate(o: Organism): bool =
         1.0,
         0.0
     ]
-    var winner = false
     var error = 0.0
     for i in 0 ..< inputs.len:
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
     o.fitness = (4.0 - error).pow 2.0
-    if o.fitness > 9.0:
-        winner = true
-    else:
-        winner = false
-    return winner
+    return o.fitness > 9.0
 
 proc xorTest() =
     var g = newGenotype()
