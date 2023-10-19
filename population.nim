@@ -1,6 +1,6 @@
 {.experimental: "codeReordering".}
 
-import std/[algorithm, math, random, strformat, tables]
+import std/[algorithm, math, random, strformat]
 
 import genotype
 import species
@@ -14,8 +14,8 @@ randomize()
 type
     Population* = ref object
         currentGeneration*: int
-        species*: OrderedTableRef[int, Species]
-        population*: OrderedTableRef[int, Organism]
+        species*: seq[Species]
+        population*: seq[Organism]
         meanFitness*: float
         variance*: float
         stdDev*: float
@@ -29,8 +29,8 @@ var
 proc newPopulation*(): Population =
     ## Creates a new population
     result = new(Population)
-    result.species = newOrderedTable[int, Species]()
-    result.population = newOrderedTable[int, Organism]()
+    result.species = newSeq[Species]()
+    result.population = newSeq[Organism]()
     result.currentGeneration = 1
 
 proc registerNewSpecies*(p: Population, representative: Organism) =
@@ -38,7 +38,7 @@ proc registerNewSpecies*(p: Population, representative: Organism) =
     let species = newSpecies(representative)
     species.id = SPECIES_HISTORY.len
     ## Add it to alive species
-    p.species[species.id] = species
+    p.species.add(species)
     ## Add it to species history
     if SPECIES_HISTORY.len > 0:
         if species notin SPECIES_HISTORY:
@@ -53,8 +53,8 @@ proc spawn*(p: Population, g: Genotype) =
         g.connect()
         g.mutateLinkWeights(1, 1, COLDGAUSSIAN)
         let o = newOrganism(g, 0.0, 1)
-        p.population[o.id] = o
-    for o in p.population.values:
+        p.population.add(o)
+    for o in p.population:
         p.speciate(o)
 
 proc speciate*(p: Population, o: Organism) =
@@ -89,11 +89,11 @@ proc advanceGeneration*(p: Population) =
             param.COMPAT_THRESHOLD += param.COMPATIBILITY_MODIFIER
         if param.COMPAT_THRESHOLD < param.COMPATIBILITY_MODIFIER:
             param.COMPAT_THRESHOLD = param.COMPATIBILITY_MODIFIER
-    for s in p.species.values:
+    for s in p.species:
         s.sortMembers()
     ## Flag the lowest performing species
     p.sortSpecies(SortOrder.ASCENDING)
-    for s in p.species.values:
+    for s in p.species:
         if s.age >= param.SPECIES_DROPOFF_AGE:
             if p.currentGeneration mod param.REGULAR_CULLING_INTERVAL == 0:
                 s.extinct = true
@@ -102,14 +102,14 @@ proc advanceGeneration*(p: Population) =
     echo "Species: ", p.species.len
     when defined(verbose):
         echo "Compatibility threshold: ", param.COMPAT_THRESHOLD
-    for s in p.species.values:
+    for s in p.species:
         s.adjustFitness()
         s.markForDeath()
     p.sortSpecies()
     p.expectedOffspring()
     let
-        bestSpecies = p.species.getFirst()
-        champion = bestSpecies.members.getFirst()
+        bestSpecies = p.species[0]
+        champion = bestSpecies.members[0]
     ## Mark current champion
     champion.isChampion = true
     if champion.originalFitness > p.highestFitness:
@@ -126,32 +126,29 @@ proc advanceGeneration*(p: Population) =
     p.cullSpecies()
     p.sortSpecies()
     p.reproduce()
-    # Mark old organisms for death
-    for o in p.population.values:
-        o.toDie = true
-    for s in p.species.valuesSnapshot:
-        # Print out species information
-        #when defined(verbose):
-        #    echo "Species ", s.id, ": age: ", s.age, " fitness: ", s.members[0].originalFitness, " size: ", s.members.len
+    # Remove old generation from population and species
+    for oId in countdown(p.population.high, 0):
+        let o = p.population[oId]
+        o.species.members.del(o.species.members.find(o))
+        when defined(verbose):
+            echo fmt"Organism {o.id} removed from species {o.species.id} with size {o.species.members.len}"
+        p.population.del(oId)
+        when defined(verbose):
+            echo fmt"Organism {o.id} removed from population with size {p.population.len}"
+    # Remove all empty species, age surviving, create new generation
+    for sId in countdown(p.species.high, 0):
+        let s = p.species[sId]
         # If species is empty, delete it
         if s.members.len == 0:
-            p.species.del(s.id)
+            p.species.del(sId)
         else:
-            # Help new species
             if s.novel:
                 s.novel = false
             else:
                 s.age += 1
-            for o in s.members.valuesSnapshot:
-                # Remove old organisms from their species' list
-                if o.toDie:
-                    s.members.del(o.id)
-                # Add new organisms to the population record
-                else:
-                    p.population[o.id] = o
-            # Delete old organisms
-            if s.members.len == 0:
-                p.species.del(s.id)
+            for oId in countdown(s.members.high, 0):
+                let o = s.members[oId]
+                p.population.add(o)
     p.currentGeneration = newGen
 
 proc expectedOffspring*(p: Population) =
@@ -162,15 +159,15 @@ proc expectedOffspring*(p: Population) =
     let averageFit = p.averageFitness()
     var totalExpected = 0
     echo "Average fitness: ", averageFit
-    for o in p.population.values:
+    for o in p.population:
         o.expectedOffspring = o.fitness / averageFit
-    for s in p.species.values:
+    for s in p.species:
         var
             integer = 0
             fractional = 0.0
             expected = 0
             carry = 0.0
-        for o in s.members.values:
+        for o in s.members:
             integer = toInt floor(o.expectedOffspring)
             fractional = o.expectedOffspring mod 1.0
             expected += integer
@@ -185,12 +182,12 @@ proc expectedOffspring*(p: Population) =
     # best Species
     if totalExpected < p.population.len:
         let
-            bestSpecies = p.species.getFirst()
+            bestSpecies = p.species[0]
         inc bestSpecies.expectedOffspring
         # If there does happen to be a problem, assign all
         # offspring to the best Species
         if totalExpected + 1 < p.population.len:
-            for o in p.population.values:
+            for o in p.population:
                 o.expectedOffspring = 0
             bestSpecies.expectedOffspring = p.population.len
 
@@ -202,7 +199,7 @@ proc deltaCoding*(p: Population) =
         bestSpecies: Species
         secondBest: Species
     p.sortSpecies()
-    for s in p.species.values:
+    for s in p.species:
         if bestSpecies.isNil:
             bestSpecies = s
         else:
@@ -210,7 +207,7 @@ proc deltaCoding*(p: Population) =
             break
     let
         halfPop = param.POP_SIZE / 2
-        champion = bestSpecies.members.getFirst()
+        champion = bestSpecies.members[0]
     p.ageSinceImprovement = 0
     ## Best organism gets half the population
     champion.expectedOffspring = halfPop
@@ -221,7 +218,7 @@ proc deltaCoding*(p: Population) =
         secondBest.members[0].expectedOffspring = halfPop
         secondBest.expectedOffspring = halfPop.toInt
         secondBest.ageLastImproved = secondBest.age
-        for s in p.species.values:
+        for s in p.species:
             if s != bestSpecies and s != secondBest:
                 s.expectedOffspring = 0
     else:
@@ -234,28 +231,31 @@ proc cullSpecies*(p: Population) =
     ## FIXME: can this be optimized? It's 86.5% of the time spent in the algorithm
     when defined(verbose):
         echo "[Culling]"
-    for o in p.population.valuesSnapshot:
+    for oId in countdown(p.population.high, 0):
+        let o = p.population[oId]
         if o.toDie:
-            o.species.members.del(o.id)
-            p.population.del(o.id)
-    for s in p.species.valuesSnapshot:
+            o.species.members.del(o.species.members.find(o))
+            p.population.del(oId)
+    for sId in countdown(p.species.high, 0):
+        let s = p.species[sId]
         if s.members.len == 0:
-            p.species.del(s.id)
+            p.species.del(sId)
 
 proc reproduce*(p: Population) =
     ## Reproduce all organisms marked for reproduction
-    let values = p.species.valuesSnapshot
-    for s in values:
-        s.reproduce(p)
+    for s in 0..p.species.high:
+        p.species[s].reproduce(p)
+    when defined(verbose):
+        echo "[Reproduction] Reproduction complete"
 
 proc reproduce*(s: Species, p: Population) =
     ## Reproduces the species
     when defined(verbose):
         echo "[Reproduction] Species ", s.id, " reproducing"
     var
-        keptLeader = false            ## Whether the leader has been kept
-        leader = s.members.getFirst() ## The species leader
-        baby: Organism                ## The baby to be created
+        keptLeader = false    ## Whether the leader has been kept
+        leader = s.members[0] ## The species leader
+        baby: Organism        ## The baby to be created
     # If the species has no members, then it dies
     if s.expectedOffspring > 0 and s.members.len == 0:
         return
@@ -284,7 +284,7 @@ proc reproduce*(s: Species, p: Population) =
         elif rand(1.0) < param.MUT_ONLY_PROB or s.members.len == 1:
             ## If we choose to mutate/there's only us left
             var
-                randomParent = s.members.getRand()
+                randomParent = s.members[rand(s.members.high)]
                 cloneGenome = randomParent.genome.clone()
             mutate(cloneGenome)
             when defined(verbose):
@@ -292,14 +292,14 @@ proc reproduce*(s: Species, p: Population) =
             baby = newOrganism(cloneGenome, 0.0, randomParent.generation + 1)
         else:
             ## Otherwise, we should mate
-            let mom = s.members.getRand()
+            let mom = s.members[rand(s.members.high)]
             var dad: Organism
             ## Decide if we mate with our own species or another
             if rand(1.0) > param.INTERSPECIES_MATE_RATE:
                 ## Mate within species
                 when defined(verbose):
                     echo "[Reproduction] Mating organism ", mom.id, " within species"
-                dad = s.members.getRand()
+                dad = s.members[rand(s.members.high)]
             else:
                 ## Mate with other species
                 var
@@ -314,8 +314,8 @@ proc reproduce*(s: Species, p: Population) =
                         var randSpeciesIdx = floor(randmult * (p.species.len - 1).toFloat + 0.5).toInt
                         if randSpeciesIdx < 0:
                             randSpeciesIdx = p.species.len + randSpeciesIdx
-                        randSpecies = p.species.getPosition(randSpeciesIdx)
-                dad = randSpecies.members.getFirst()
+                        randSpecies = p.species[randSpeciesIdx]
+                dad = randSpecies.members[0]
                 when defined(verbose):
                     echo fmt"[Reproduction] Mating organism {mom.id} from species {s.id} with organism {dad.id} from species {randSpecies.id}"
             var newGenome = mating(mom.genome, dad.genome)
@@ -328,10 +328,10 @@ proc reproduce*(s: Species, p: Population) =
         ## Assign to species at birth
         p.speciate(baby)
 
-proc speciesCmp*(a, b: (int, Species)): int =
-    if a[1].members.getFirst().fitness > b[1].members.getFirst().fitness:
+proc speciesCmp*(a, b: Species): int =
+    if a.members[0].fitness > b.members[0].fitness:
         return 1
-    elif a[1].members.getFirst().fitness < b[1].members.getFirst().fitness:
+    elif a.members[0].fitness < b.members[0].fitness:
         return -1
     else:
         return 0
@@ -343,6 +343,6 @@ proc sortSpecies*(p: Population, order = SortOrder.DESCENDING) =
 proc averageFitness*(p: Population): float =
     ## Returns the average fitness of the population
     var total = 0.0
-    for o in p.population.values:
+    for o in p.population:
         total += o.fitness
     return total / p.population.len.toFloat

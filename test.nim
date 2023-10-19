@@ -58,13 +58,13 @@ proc xorTest() =
     var
         winner = false
     while not winner:
-        for o in p.population.values:
+        for o in p.population:
             if xorEvaluate(o):
                 winner = true
                 break
         p.advanceGeneration()
     echo "Winner found in generation ", p.currentGeneration
-    p.population.getFirst.net.blueprint.toGraph().exportImage("xor_winner.png")
-    "xor_winner.json".open(fmWrite).write p.population.getFirst.net.blueprint.toJson()
+    p.population[0].net.blueprint.toGraph().exportImage("xor_winner.png")
+    "xor_winner.json".open(fmWrite).write p.population[0].net.blueprint.toJson()
 
 xorTest()

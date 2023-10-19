@@ -1,15 +1,13 @@
-import std/[algorithm, math, strformat, tables]
+import std/[algorithm, math, strformat]
 
 import genotype
 import network
 import params
 
-import utils
-
 type
     Species* = ref object
         id*: int
-        members*: OrderedTableRef[int, Organism]
+        members*: seq[Organism]
         representative*: Organism
         leader*: Organism
         topFitness*: float
@@ -48,14 +46,14 @@ func `==`*(a, b: Organism): bool =
 var
     CURR_IND* = 0
 
-proc addOrganism*(s: Species, o: sink Organism) =
+proc addOrganism*(s: Species, o: Organism) =
     ## Add an organism to a species
-    s.members[o.id] = o
+    s.members.add(o)
     o.species = s
 
 proc newSpecies*(representative: Organism): Species =
     result = new Species
-    result.members = newOrderedTable[int, Organism]()
+    result.members = @[]
     result.representative = representative
     result.novel = true
     result.addOrganism(representative)
@@ -80,30 +78,30 @@ proc recreate*(o: Organism) =
 proc findChampion*(s: Species): Organism =
     var champion: Organism
     champion.fitness = -1.0
-    for g in s.members.values:
+    for g in s.members:
         if g.fitness > champion.fitness:
             champion = g
     return champion
 
-proc memberCmp*(a, b: (int, Organism)): int =
+proc memberCmp*(a, b: Organism): int =
     ## Compare two organisms based on fitness
-    if a[1].fitness > b[1].fitness:
+    if a.fitness > b.fitness:
         return 1
-    elif a[1].fitness < b[1].fitness:
+    elif a.fitness < b.fitness:
         return -1
     return 0
 
 proc sortMembers*(s: Species, order = SortOrder.Descending) =
     ## Sort a species' members
     s.members.sort(memberCmp, order)
-    s.leader = s.members.getFirst()
+    s.leader = s.members[0]
 
 proc adjustFitness*(s: Species) =
     ## Adjust fitness based on species age, sharing fitness amongst members.
     var ageDebt = s.age - s.ageLastImproved + 1 - param.DROPOFF_AGE
     if ageDebt == 0:
         ageDebt = 1
-    for o in s.members.values:
+    for o in s.members:
         o.originalFitness = o.fitness
         # If the species is stagnated or is the worst one
         if ageDebt >= 1 or s.extinct:
@@ -118,7 +116,7 @@ proc adjustFitness*(s: Species) =
         o.fitness /= s.members.len.toFloat
     s.sortMembers()
     # Update ageLastImproved
-    let mostFit = s.members.getFirst()
+    let mostFit = s.members[0]
     if mostFit.originalFitness > s.bestEverFitness:
         s.ageLastImproved = s.age
         s.bestEverFitness = mostFit.originalFitness
@@ -127,7 +125,7 @@ proc adjustFitness*(s: Species) =
 proc markForDeath*(s: Species) =
     ## Marks organisms not able to be parents to die.
     var parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
-    for o in s.members.values:
+    for o in s.members:
         if parentNumber > 0:
             o.toDie = false
             dec parentNumber
@@ -136,7 +134,7 @@ proc markForDeath*(s: Species) =
 
 proc calculateAvgFitness*(s: Species) =
     var total = 0.0
-    for o in s.members.values:
+    for o in s.members:
         total += o.fitness
     s.averageFitness = total / s.members.len.toFloat
 
