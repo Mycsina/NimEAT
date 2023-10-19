@@ -1,10 +1,8 @@
 import std/[math, jsonutils, json, random, os]
 import fusion/[ioutils]
 
-## TODO INVESTIGATE WHY ONLY THE FIRST 2 SPECIES ARE EVER SURVIVING
-
 when defined(debug):
-    #import nimprof
+    import nimprof
     let tmpFileName = "output.txt"
     let stdoutFileno = stdout.getFileHandle()
     let tmpFile = open(tmpFileName, fmWrite)
@@ -57,7 +55,7 @@ proc xorTest() =
     var
         winner = false
     while not winner:
-        for o in p.population:
+        for o in p.population.values:
             if xorEvaluate(o):
                 winner = true
                 break

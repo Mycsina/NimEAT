@@ -15,7 +15,6 @@ proc toJsonHook*(s: Species): JsonNode =
     result["bestEverFitness"] = toJson(s.bestEverFitness)
     result["averageFitness"] = toJson(s.averageFitness)
     result["expectedOffspring"] = toJson(s.expectedOffspring)
-    result["parentNumber"] = toJson(s.parentNumber)
     result["age"] = toJson(s.age)
     result["ageLastImproved"] = toJson(s.ageLastImproved)
     result["averageEstimation"] = toJson(s.averageEstimation)

@@ -173,16 +173,17 @@ func isSameTopology*(a: Genotype, b: Genotype): bool =
             return false
     return true
 
-func isClone*(a: Genotype, b: Genotype): bool =
+func `==`*(a: Genotype, b: Genotype): bool =
     ## Compare two genotypes
-    if isSameTopology(a, b):
-        for i in 0..a.links.high:
-            if a.links[i].weight != b.links[i].weight:
-                return false
-            if a.links[i].enabled != b.links[i].enabled:
-                return false
-        return true
-    return false
+    if not a.isNil and not b.isNil:
+        if isSameTopology(a, b):
+            for i in 0..a.links.high:
+                if a.links[i].weight != b.links[i].weight:
+                    return false
+                if a.links[i].enabled != b.links[i].enabled:
+                    return false
+            return true
+        return false
 
 proc speciationDistance*(first, second: Genotype): float =
     ## Calculate the speciation distance between two genotypes

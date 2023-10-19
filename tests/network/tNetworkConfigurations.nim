@@ -1,8 +1,8 @@
-import Math
+import std/[math]
 
-import ../../Activation
-import ../../Genotype
-import ../../Network
+import ../../activation
+import ../../genotype
+import ../../network
 
 ## Create a basic 2-input to 1-output network with no activation function
 var net = Network()

@@ -1,4 +1,4 @@
-import ../Genotype
+import ../../genotype
 
 # Bias node is always node 0 and created by default
 let geno = newGenotype()
@@ -31,6 +31,6 @@ assert geno2.links.len == 3
 assert geno.isSameTopology geno2
 
 # Check cloning operations
-assert not geno.isClone geno2
-assert geno.isClone geno.clone
-assert geno2.isClone geno2.clone.clone
+assert geno != geno2
+assert geno == geno.clone
+assert geno2 == geno2.clone.clone

@@ -1,9 +1,7 @@
 import std/[random]
 
-import nimgraphviz
-
-import ../Genotype
-import ../Params
+import ../../genotype
+import ../../params
 
 var mom, dad, child: Genotype
 

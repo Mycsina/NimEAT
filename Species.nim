@@ -1,19 +1,18 @@
-import std/[algorithm, math]
+import std/[algorithm, math, strformat, tables]
 
-import Genotype
-import Network
-import Params
+import genotype
+import network
+import params
 
 type
     Species* = ref object
         id*: int
-        members*: seq[Organism]
+        members*: OrderedTableRef[int, Organism]
         representative*: Organism
         topFitness*: float
         bestEverFitness*: float
         averageFitness*: float
         expectedOffspring*: int
-        parentNumber*: int
         age*: int
         ageLastImproved*: int
         averageEstimation*: float
@@ -33,27 +32,34 @@ type
         isChampion*: bool
         toDie*: bool
 
+func `==`*(a, b: Species): bool =
+    if not a.isNil and not b.isNil:
+        return a.id == b.id
+    return false
+
+func `==`*(a, b: Organism): bool =
+    if not a.isNil and not b.isNil:
+        return a.id == b.id
+    return false
+
 var
     CURR_IND* = 0
 
-proc addOrganism*(s: Species, o: Organism) =
+proc addOrganism*(s: Species, o: sink Organism) =
     ## Add an organism to a species
-    s.members.add(o)
+    s.members[o.id] = o
     o.species = s
 
 proc newSpecies*(representative: Organism): Species =
     result = new Species
-    result.members = @[]
+    result.members = newOrderedTable[int, Organism]()
     result.representative = representative
     result.novel = true
     result.addOrganism(representative)
 
 proc newSpecies*(representative: Organism, id: int): Species =
-    result = new Species
-    result.members = @[]
+    result = newSpecies(representative)
     result.id = id
-    result.representative = representative
-    result.novel = true
 
 proc newOrganism*(g: Genotype, fit: float, gen: int): Organism =
     result = new Organism
@@ -71,32 +77,29 @@ proc recreate*(o: Organism) =
 proc findChampion*(s: Species): Organism =
     var champion: Organism
     champion.fitness = -1.0
-    for g in s.members:
+    for g in s.members.values:
         if g.fitness > champion.fitness:
             champion = g
     return champion
 
-proc organismCmp*(a, b: Organism): int =
-    ## Organism comparison function
-    if a.fitness > b.fitness: return -1
-    if a.fitness < b.fitness: return 1
+proc memberCmp*(a, b: (int, Organism)): int =
+    ## Compare two organisms based on fitness
+    if a[1].fitness > b[1].fitness:
+        return 1
+    elif a[1].fitness < b[1].fitness:
+        return -1
     return 0
 
-proc `==`*(a, b: Species): bool =
-    ## Species comparison function
-    if not a.isNil and not b.isNil:
-        return speciationDistance(a.representative.genome, b.representative.genome) < param.COMPAT_THRESHOLD
-
-proc sortMembers*(s: Species) =
+proc sortMembers*(s: Species, order = SortOrder.Descending) =
     ## Sort a species' members
-    s.members.sort(organismCmp)
+    s.members.sort(memberCmp, order)
 
 proc adjustFitness*(s: Species) =
     ## Adjust fitness based on species age, sharing fitness amongst members.
     var ageDebt = s.age - s.ageLastImproved + 1 - param.DROPOFF_AGE
     if ageDebt == 0:
         ageDebt = 1
-    for o in s.members:
+    for o in s.members.values:
         o.originalFitness = o.fitness
         # If the species is stagnated or is the worst one
         if ageDebt >= 1 or s.extinct:
@@ -119,13 +122,17 @@ proc adjustFitness*(s: Species) =
 
 proc markForDeath*(s: Species) =
     ## Marks organisms not able to be parents to die.
-    s.parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
-    for i in (s.parentNumber - 1)..s.members.high:
-        s.members[i].toDie = true
+    var parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
+    for o in s.members.values:
+        if parentNumber > 0:
+            o.toDie = false
+            dec parentNumber
+        else:
+            o.toDie = true
 
 proc calculateAvgFitness*(s: Species) =
     var total = 0.0
-    for o in s.members:
+    for o in s.members.values:
         total += o.fitness
     s.averageFitness = total / s.members.len.toFloat
 
@@ -133,3 +140,15 @@ proc calculateMaxFitness*(s: Species) =
     s.sortMembers()
     s.topFitness = s.members[0].fitness
 
+proc `$`*(s: Species): string =
+    result = "Species ("
+    result.add fmt"ID: {s.id}, "
+    result.add fmt"Members: {s.members.len}, "
+    result.add fmt"Representative: {s.representative.id})"
+    result.add fmt"Age: {s.age}, "
+    result.add fmt"AgeLastImproved: {s.ageLastImproved}, "
+    result.add fmt"ExpectedOffspring: {s.expectedOffspring}, "
+    result.add fmt"TopFitness: {s.topFitness}, "
+    result.add fmt"BestEverFitness: {s.bestEverFitness}, "
+    result.add fmt"AverageFitness: {s.averageFitness}, "
+    result.add fmt"Novel: {s.novel}, "
