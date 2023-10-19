@@ -4,7 +4,7 @@ import std/[algorithm, tables, random]
 
 import nimgraphviz
 
-import Params
+import params
 
 randomize()
 

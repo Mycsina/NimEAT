@@ -1,8 +1,12 @@
 import std/[math, jsonutils, json, random, os]
 import fusion/[ioutils]
 
+import utils
+
 when defined(debug):
     import nimprof
+
+when defined(log2file):
     let tmpFileName = "output.txt"
     let stdoutFileno = stdout.getFileHandle()
     let tmpFile = open(tmpFileName, fmWrite)
@@ -10,19 +14,18 @@ when defined(debug):
     duplicateTo(tmpFileFd, stdoutFileno)
     tmpFile.close()
 
-import Genotype
-import Network
-import Population
-import Species
-import Params
+import genotype
+import network
+import population
+import species
+import params
 
 param.setPopSize(512)
-param.setEnforcedDiversity(false)
-param.setAgeSignificance(3)
+param.setSurvivalThreshold(0.1)
 
 import nimgraphviz
 
-randomize(2)
+randomize(0)
 
 proc xorEvaluate(o: Organism): bool =
     let inputs = @[
@@ -42,7 +45,7 @@ proc xorEvaluate(o: Organism): bool =
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
     o.fitness = (4.0 - error).pow 2.0
-    return o.fitness > 9.0
+    return o.fitness > 7.5
 
 proc xorTest() =
     var g = newGenotype()
@@ -61,7 +64,7 @@ proc xorTest() =
                 break
         p.advanceGeneration()
     echo "Winner found in generation ", p.currentGeneration
-    p.population[0].net.blueprint.toGraph().exportImage("xor_winner.png")
-    "xor_winner.json".open(fmWrite).write p.population[0].net.blueprint.toJson()
+    p.population.getFirst.net.blueprint.toGraph().exportImage("xor_winner.png")
+    "xor_winner.json".open(fmWrite).write p.population.getFirst.net.blueprint.toJson()
 
 xorTest()

@@ -4,11 +4,14 @@ import genotype
 import network
 import params
 
+import utils
+
 type
     Species* = ref object
         id*: int
         members*: OrderedTableRef[int, Organism]
         representative*: Organism
+        leader*: Organism
         topFitness*: float
         bestEverFitness*: float
         averageFitness*: float
@@ -93,6 +96,7 @@ proc memberCmp*(a, b: (int, Organism)): int =
 proc sortMembers*(s: Species, order = SortOrder.Descending) =
     ## Sort a species' members
     s.members.sort(memberCmp, order)
+    s.leader = s.members.getFirst()
 
 proc adjustFitness*(s: Species) =
     ## Adjust fitness based on species age, sharing fitness amongst members.
@@ -114,7 +118,7 @@ proc adjustFitness*(s: Species) =
         o.fitness /= s.members.len.toFloat
     s.sortMembers()
     # Update ageLastImproved
-    let mostFit = s.members[0]
+    let mostFit = s.members.getFirst()
     if mostFit.originalFitness > s.bestEverFitness:
         s.ageLastImproved = s.age
         s.bestEverFitness = mostFit.originalFitness

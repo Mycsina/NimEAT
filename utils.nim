@@ -2,15 +2,21 @@ import std/[algorithm, random, tables]
 
 ## OrderedTableRef ##
 
-iterator view*[A, B](a: OrderedTableRef[A, B]): B =
-  discard
+proc keysSnapshot*[A, B](a: OrderedTableRef[A, B]): seq[A] =
+  ## Returns a static snapshot of the keys in the table.
+  result = newSeqOfCap[A](a.len - 1)
+  for x in a.keys:
+    result.add(x)
 
-proc `high`*[A, B](a: OrderedTableRef[A, B]): int =
-  ## Returns number of keys in the table.
-  result = len(a) - 1
+proc valuesSnapshot*[A, B](a: OrderedTableRef[A, B]): seq[B] =
+  ## Returns a static snapshot of the values in the table.
+  result = newSeqOfCap[B](a.len - 1)
+  for x in a.values:
+    result.add(x)
 
 proc getPosition*[A, B](a: OrderedTableRef[A, B], pos: int): B =
-  a.sort(system.cmp, SortOrder.DESCENDING)
+  ## Returns the value at the given position in the table.
+  ## Expects the table to be sorted.
   var count = pos
   for x in a.values:
     if count == 0:
@@ -22,4 +28,4 @@ proc getFirst*[A, B](a: OrderedTableRef[A, B]): B =
   getPosition(a, 0)
 
 proc getRand*[A, B](a: OrderedTableRef[A, B]): B =
-  getPosition(a, rand(a.len))
+  getPosition(a, rand(a.len - 1))

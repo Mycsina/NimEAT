@@ -1,14 +1,14 @@
-import std/[json, jsonutils]
+import std/[json, jsonutils, tables]
 
-import Genotype
-import Network
-import Species
-import Population
+import genotype
+import network
+import species
+import population
 
 proc toJsonHook*(s: Species): JsonNode =
     result = newJObject()
     result["members"] = newJArray()
-    for member in s.members:
+    for member in s.members.values:
         result["members"].add(toJson(member))
     result["representative"] = toJson(s.representative)
     result["topFitness"] = toJson(s.topFitness)
@@ -24,7 +24,7 @@ proc toJsonHook*(s: Species): JsonNode =
 proc toJsonHook*(p: Population): JsonNode =
     result = newJObject()
     result["species"] = newJArray()
-    for species in p.species:
+    for species in p.species.values:
         result["species"].add(toJson(species))
     result["meanFitness"] = toJson(p.meanFitness)
     result["variance"] = toJson(p.variance)

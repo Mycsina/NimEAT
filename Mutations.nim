@@ -1,7 +1,7 @@
 import std/[random, sets, macros]
 
-import Genotype
-import Params
+import genotype
+import params
 
 proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutType) =
     let severe = rand(1.0) > 0.5

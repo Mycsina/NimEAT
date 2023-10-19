@@ -1,7 +1,7 @@
 import std/[sequtils]
 
-import Activation
-import Genotype
+import activation
+import genotype
 
 import nimgraphviz
 
@@ -76,7 +76,7 @@ proc generateNetwork*(g: Genotype): Network =
     result.links = @[]
     result.blueprint = g
     for node in g.nodes:
-        result.addNode(node.ntype, node.id)
+        result.addNode(node.nType, node.id)
     # TODO: handle RNNs (we need to store previous state)
     for link in g.links:
         result.addLink(link.src, link.dst, link.weight, link.enabled)
