@@ -1,8 +1,6 @@
 import std/[math, jsonutils, json, random, os]
 import fusion/[ioutils]
 
-import utils
-
 when defined(debug):
     import nimprof
 

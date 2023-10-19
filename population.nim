@@ -7,8 +7,6 @@ import species
 import params
 import mutations
 
-import utils
-
 randomize()
 
 type

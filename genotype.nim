@@ -102,11 +102,17 @@ proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bo
     l.innovation = innovation
     this.links.add(l)
 
-func clone*(this: Genotype): Genotype =
-    return this.deepCopy()
+proc clone*(this: Genotype): Genotype =
+    ## Return untraced copy of Genotype
+    var g = cast[ptr Genotype](alloc(sizeof(Genotype)))
+    g.copyMem(this.addr, sizeof(Genotype))
+    return g[]
 
-func clone*(this: LinkGene): LinkGene =
-    return this.deepCopy()
+proc clone*(this: LinkGene): LinkGene =
+    ## Return untraced copy of LinkGene
+    var l = cast[ptr LinkGene](alloc(sizeof(LinkGene)))
+    l.copyMem(this.addr, sizeof(LinkGene))
+    return l[]
 
 func checkNode*(this: Genotype, id: int): bool =
     return uint16(id) in this.nodeIds
