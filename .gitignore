@@ -5,3 +5,4 @@ nimcache
 *.exe
 /bin/
 *.txt
+.vscode/tasks.json

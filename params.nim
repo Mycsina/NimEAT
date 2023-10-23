@@ -26,8 +26,6 @@ type
         MUT_ONLY_PROB* = 0.25
         MUT_TOGGLE_PROB* = 0.00
         MUT_REENABLE_PROB* = 0.00
-        ## Additions to the original NEAT algorithm
-        POP_CLAMP* = 0
 
 var param* = new NEATParams
 
@@ -130,7 +128,3 @@ proc setMutToggleProb*(self: NEATParams, prob: float) =
 proc setMutReenableProb*(self: NEATParams, prob: float) =
     ## Sets probability of reenabling a link
     self.MUT_REENABLE_PROB = prob
-
-proc setPopClamp*(self: NEATParams, clamp: int) =
-    ## Sets population clamp
-    self.POP_CLAMP = clamp

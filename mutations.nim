@@ -8,8 +8,9 @@ proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutT
     var
         gaussPoint: float
         coldGaussPoint: float
-        iter = 0
-    for link in g.links:
+    for iter in 0..g.links.high:
+        let link = g.links[iter]
+        var newLink = link
         if rand(1.0) > 0.5:
             gaussPoint = 1.0 - chance
             coldGaussPoint = 1.0 - chance - 0.1
@@ -28,13 +29,13 @@ proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutT
         if mutation == GAUSSIAN:
             let choice = rand(1.0)
             if choice > gaussPoint:
-                link.weight += randVal
+                newLink.weight += randVal
             elif choice > coldGaussPoint:
-                link.weight = randVal
+                newLink.weight = randVal
         elif mutation == COLDGAUSSIAN:
-            link.weight = randVal
-        link.mutDiff = randVal
-        iter += 1
+            newLink.weight = randVal
+        newLink.mutDiff = randVal
+        g.links[iter] = newLink
 
 macro checkLink(): untyped =
     quote do:
@@ -57,7 +58,9 @@ macro checkLink(): untyped =
                 break
 
 proc mutateToggleEnable*(g: Genotype) =
-    let randomGene = g.links[rand(g.links.high)]
+    let randIdx = rand(g.links.high)
+    let randomGene = g.links[randIdx]
+    var randCopy = randomGene
     if randomGene.enabled:
         for i in 0..g.links.high:
             let gene = g.links[i]
@@ -66,31 +69,36 @@ proc mutateToggleEnable*(g: Genotype) =
                 val = false
                 break
             if val:
-                randomGene.enabled = false
+                randCopy.enabled = false
     else:
-        randomGene.enabled = true
+        randCopy.enabled = true
+    g.links[randIdx] = randCopy
 
 func mutateReenable*(g: Genotype) =
-    for link in g.links:
+    for i in 0..g.links.high:
+        let link = g.links[i]
         if not link.enabled:
-            link.enabled = true
+            var newLink = link
+            newLink.enabled = true
+            g.links[i] = newLink
 
 proc mutateAddNode*(g: Genotype) =
-    var
-        count = 0
-        found = false
-        randomGene = g.links[rand(g.links.high)]
-    while count < 20 and not found:
-        if randomGene.enabled or g.nodes[randomGene.src].nType != BIAS:
-            found = true
-        inc count
-    if found:
-        randomGene.enabled = false
-        let
-            oldWeight = randomGene.weight
-        g.addNodeGene(HIDDEN, g.nodes.len)
-        g.addLinkGene(randomGene.src, g.nodes[g.nodes.high].id, 1.0, true)
-        g.addLinkGene(g.nodes[g.nodes.high].id, randomGene.dst, oldWeight, true)
+    if g.links.len > 0:
+        var
+            count = 0
+            found = false
+            randomLink = g.links[rand(g.links.high)]
+        while count < 20 and not found:
+            if randomLink.enabled or g.nodes[randomLink.src].nType != BIAS:
+                found = true
+            inc count
+        if found:
+            randomLink.enabled = false
+            let
+                oldWeight = randomLink.weight
+            g.addNodeGene(HIDDEN, g.nodes.len)
+            g.addLinkGene(randomLink.src, g.nodes[g.nodes.high].id, 1.0, true)
+            g.addLinkGene(g.nodes[g.nodes.high].id, randomLink.dst, oldWeight, true)
 
 proc mutateAddLink*(g: Genotype) =
     var
@@ -131,13 +139,13 @@ proc mutateAddLink*(g: Genotype) =
 
 proc structuralMutation*(g: Genotype): bool =
     ## Mutate the genome's structure
-    var val = true
+    var val = false
     if rand(1.0) < param.MUT_ADD_NODE_PROB:
         g.mutateAddNode()
-        val = false
+        val = true
     elif rand(1.0) < param.MUT_ADD_LINK_PROB:
         g.mutateAddLink()
-        val = false
+        val = true
     return val
 
 proc connectionMutation*(g: Genotype) =

@@ -75,9 +75,11 @@ proc generateNetwork*(g: Genotype): Network =
     result.nodes = @[]
     result.links = @[]
     result.blueprint = g
+    result.addNode(BIAS, 0)
     for node in g.nodes:
         result.addNode(node.nType, node.id)
-    # TODO: handle RNNs (we need to store previous state)
+        if node.nType != INPUT:
+            result.addLink(0, node.id, randWeight(), true)
     for link in g.links:
         result.addLink(link.src, link.dst, link.weight, link.enabled)
 
@@ -119,7 +121,3 @@ proc toGraph*(this: Network): Graph[Edge] =
         if link.enabled:
             graph.addEdge($link.src -- $link.dst)
     return graph
-
-# TODO: this
-proc dump*(this: Network) =
-    discard

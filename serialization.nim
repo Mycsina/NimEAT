@@ -5,35 +5,6 @@ import network
 import species
 import population
 
-proc toJsonHook*(s: Species): JsonNode =
-    result = newJObject()
-    result["members"] = newJArray()
-    for member in s.members.values:
-        result["members"].add(toJson(member))
-    result["representative"] = toJson(s.representative)
-    result["topFitness"] = toJson(s.topFitness)
-    result["bestEverFitness"] = toJson(s.bestEverFitness)
-    result["averageFitness"] = toJson(s.averageFitness)
-    result["expectedOffspring"] = toJson(s.expectedOffspring)
-    result["age"] = toJson(s.age)
-    result["ageLastImproved"] = toJson(s.ageLastImproved)
-    result["averageEstimation"] = toJson(s.averageEstimation)
-    result["extinct"] = toJson(s.extinct)
-    result["novel"] = toJson(s.novel)
-
-proc toJsonHook*(p: Population): JsonNode =
-    result = newJObject()
-    result["species"] = newJArray()
-    for species in p.species.values:
-        result["species"].add(toJson(species))
-    result["meanFitness"] = toJson(p.meanFitness)
-    result["variance"] = toJson(p.variance)
-    result["stdDev"] = toJson(p.stdDev)
-    result["winnerGen"] = toJson(p.winnerGen)
-    result["highestFitness"] = toJson(p.highestFitness)
-    result["ageSinceImprovement"] = toJson(p.ageSinceImprovement)
-
-
 proc toJsonHook*(n: NodeGene): JsonNode =
     result = newJObject()
     result["id"] = toJson(n.id)
@@ -96,3 +67,46 @@ proc toJsonHook*(n: Network): JsonNode =
         result["outputs"].add(toJson(node))
     result["score"] = toJson(n.score)
     result["blueprint"] = toJson(n.blueprint)
+
+proc toJsonHook*(o: Organism): JsonNode =
+    result = newJObject()
+    result["id"].add(toJson(o.id))
+    result["fitness"].add(toJson(o.fitness))
+    result["originalFitness"].add(toJson(o.originalFitness))
+    result["winner"].add(toJson(o.winner))
+    result["net"].add(toJson(o.net))
+    result["species"].add(toJson(o.species))
+    result["genome"].add(toJson(o.genome))
+    result["expectedOffspring"].add(toJson(o.expectedOffspring))
+    result["generation"].add(toJson(o.generation))
+    result["isLeader"].add(toJson(o.isLeader))
+    result["isChampion"].add(toJson(o.isChampion))
+    result["toDie"].add(toJson(o.toDie))
+
+proc toJsonHook*(s: Species): JsonNode =
+    result = newJObject()
+    result["members"] = newJArray()
+    for member in s.members:
+        result["members"].add(toJson(member))
+    result["representative"] = toJson(s.representative)
+    result["topFitness"] = toJson(s.topFitness)
+    result["bestEverFitness"] = toJson(s.bestEverFitness)
+    result["averageFitness"] = toJson(s.averageFitness)
+    result["expectedOffspring"] = toJson(s.expectedOffspring)
+    result["age"] = toJson(s.age)
+    result["ageLastImproved"] = toJson(s.ageLastImproved)
+    result["averageEstimation"] = toJson(s.averageEstimation)
+    result["extinct"] = toJson(s.extinct)
+    result["novel"] = toJson(s.novel)
+
+proc toJsonHook*(p: Population): JsonNode =
+    result = newJObject()
+    result["species"] = newJArray()
+    for species in p.species:
+        result["species"].add(toJson(species))
+    result["meanFitness"] = toJson(p.meanFitness)
+    result["variance"] = toJson(p.variance)
+    result["stdDev"] = toJson(p.stdDev)
+    result["winnerGen"] = toJson(p.winnerGen)
+    result["highestFitness"] = toJson(p.highestFitness)
+    result["ageSinceImprovement"] = toJson(p.ageSinceImprovement)

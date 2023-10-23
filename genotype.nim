@@ -11,10 +11,10 @@ randomize()
 type
     NType* = enum
         INPUT, HIDDEN, OUTPUT, BIAS
-    NodeGene* = ref object
+    NodeGene* = object
         id*: int
         nType*: NType
-    LinkGene* = ref object
+    LinkGene* = object
         src*: int
         dst*: int
         weight*: float
@@ -41,16 +41,10 @@ proc resetInnovation*() =
     SEEN_INNO = newTable[(int, int), int]()
 
 func newNodeGene*(nodeType: NType, id: int): NodeGene =
-    result = new NodeGene
-    result.nType = nodeType
-    result.id = id
+    result = NodeGene(id: id, nType: nodeType)
 
 proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
-    result = new LinkGene
-    result.src = src
-    result.dst = dst
-    result.weight = weight
-    result.enabled = enabled
+    result = LinkGene(src: src, dst: dst, weight: weight, enabled: enabled)
     if src != 0:
         if SEEN_INNO.hasKey((src, dst)):
             result.innovation = SEEN_INNO[(src, dst)]
@@ -61,7 +55,6 @@ proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
 
 proc newGenotype*(): Genotype =
     result = new Genotype
-    result.addNodeGene(BIAS, 0)
 
 proc newGenotype*(inputs, outputs: int): Genotype =
     result = newGenotype()
@@ -75,19 +68,11 @@ proc addNodeGene*(this: Genotype, nodeType: NType, id: int) =
     let v = newNodeGene(nodeType, id)
     this.nodes.add(v)
     # This should never happen
-    when not defined(release):
-        if id < 0:
-            raise newException(ValueError, "Node id must be positive")
-        if uint16(id) in this.nodeIds:
-            raise newException(ValueError, "Node id already exists")
     this.nodeIds.incl(uint16(id))
     if nodeType == INPUT:
         inc this.inputs
     elif nodeType == OUTPUT:
         inc this.outputs
-    # Connect to bias node if not input
-    if (nodeType != INPUT and nodeType != BIAS):
-        this.addLinkGene(0, id, randWeight(), true)
     inc this.currNode
 
 proc addNodeGene*(this: Genotype, nodeType: NType) =
@@ -103,16 +88,10 @@ proc addLinkGene*(this: Genotype, src: int, dst: int, weight: float, enabled: bo
     this.links.add(l)
 
 proc clone*(this: Genotype): Genotype =
-    ## Return untraced copy of Genotype
-    var g = cast[ptr Genotype](alloc(sizeof(Genotype)))
-    g.copyMem(this.addr, sizeof(Genotype))
-    return g[]
+    return this.deepCopy()
 
 proc clone*(this: LinkGene): LinkGene =
-    ## Return untraced copy of LinkGene
-    var l = cast[ptr LinkGene](alloc(sizeof(LinkGene)))
-    l.copyMem(this.addr, sizeof(LinkGene))
-    return l[]
+    return this.deepCopy()
 
 func checkNode*(this: Genotype, id: int): bool =
     return uint16(id) in this.nodeIds
@@ -236,6 +215,7 @@ proc speciationDistance*(first, second: Genotype): float =
             numMatching)
 
 proc innovationCrossover*(first, second: Genotype): Genotype =
+    ## Refactor this mess
     let
         fitness1 = first.fitness
         fitness2 = second.fitness
