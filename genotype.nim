@@ -55,6 +55,7 @@ proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
 
 proc newGenotype*(): Genotype =
     result = new Genotype
+    result.addNodeGene(BIAS)
 
 proc newGenotype*(inputs, outputs: int): Genotype =
     result = newGenotype()
@@ -217,76 +218,67 @@ proc speciationDistance*(first, second: Genotype): float =
 proc innovationCrossover*(first, second: Genotype): Genotype =
     ## Refactor this mess
     let
-        fitness1 = first.fitness
-        fitness2 = second.fitness
+        firstFit = first.fitness
+        secondFit = second.fitness
         child = newGenotype()
-    var
-        better1: bool
-    ## Determine which genome is better
-    if fitness1 > fitness2:
-        better1 = true
-    elif fitness1 == fitness2:
-        ## Smaller with same fitness is better
-        better1 = first.links.len < second.links.len
-    else:
-        better1 = false
+    var firstBetter = false
+    if firstFit > secondFit:
+        firstBetter = true
+    elif firstFit == secondFit:
+        firstBetter = first.links.len < second.links.len
     ## Add inputs, outputs to child
     for node in second.nodes:
         if node.nType in [INPUT, OUTPUT]:
             child.addNodeGene(node.nType, node.id)
     var
         fIter, sIter = 0
-        skip: bool
+        fEnd = first.links.len
+        sEnd = second.links.len
+        fromWorse: bool ## Used to skip excess from worst
         chosenLink: LinkGene
-    while not (fIter == first.links.high and sIter == second.links.high):
-        skip = false
-        if fIter == first.links.high:
-            ## Reached end of first genome
-            chosenLink = second.links[sIter].clone()
+    while not (fIter == fEnd and sIter == sEnd):
+        fromWorse = false
+        if fIter == fEnd:
+            chosenLink = second.links[sIter]
             inc sIter
-            if better1: skip = true
-        elif sIter == second.links.high:
-            ## Reached end of second genome
-            chosenLink = first.links[fIter].clone()
+            if firstBetter: fromWorse = true
+        elif sIter == sEnd:
+            chosenLink = first.links[fIter]
             inc fIter
-            if not better1: skip = true
+            if not firstBetter: fromWorse = true
         else:
             let
-                fInnov = first.links[fIter].innovation
-                sInnov = second.links[sIter].innovation
-                fLink = first.links[fIter]
-                sLink = second.links[sIter]
-            if fInnov == sInnov:
-                # Clone first link
-                chosenLink = fLink.clone()
-                # Average weights
-                chosenLink.weight = (fLink.weight + sLink.weight) / 2
-                # Average mutDiff
-                chosenLink.mutDiff = (fLink.mutDiff + sLink.mutDiff) / 2
-                if fLink.enabled == false or sLink.enabled == false:
+                firstLink = first.links[fIter]
+                secondLink = second.links[sIter]
+            if firstLink.innovation == secondLink.innovation:
+                if rand(1.0) < 0.5:
+                    chosenLink = firstLink
+                else:
+                    chosenLink = secondLink
+                # TODO: test if above or below is best
+                # chosenLink = firstLink.clone()
+                # chosenLink.weight = (firstLink.weight + secondLink.weight) / 2
+                # chosenLink.mutDiff = (firstLink.mutDiff + secondLink.mutDiff) / 2
+                if firstLink.enabled == false or secondLink.enabled == false:
                     if rand(1.0) < param.DISABLED_GENE_INHERIT_PROB:
-                        child.links[child.links.high].enabled = false
+                        chosenLink.enabled = false
                 inc fIter
                 inc sIter
-            elif fInnov < sInnov:
-                ## If first innovation is smaller, choose it
-                chosenLink = first.links[fIter].clone()
+            elif firstLink.innovation < secondLink.innovation:
+                chosenLink = firstLink
                 inc fIter
-                if not better1: skip = true
-            elif fInnov > sInnov:
-                chosenLink = second.links[sIter].clone()
+                if not firstBetter: fromWorse = true
+            elif firstLink.innovation > secondLink.innovation:
+                chosenLink = secondLink
                 inc sIter
-                if better1: skip = true
-        ## Chose a link, check if it already exists
-        var val = true
+                if firstBetter: fromWorse = true
         for link in child.links:
             if link.src == chosenLink.src and link.dst == chosenLink.dst:
-                val = false
+                ## We already have this link, just skip
+                fromWorse = true
                 break
-        if not val:
-            skip = true
-        if not skip:
-            # check if child has node genes for the link
+        if not fromWorse:
+            ## Check if child has node genes for the link
             let
                 inNode = chosenLink.src
                 outNode = chosenLink.dst
@@ -295,6 +287,10 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
             if not child.checkNode(outNode):
                 child.addNodeGene(HIDDEN, outNode)
             child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled)
+    if child.links.len == 0:
+        echo first.repr
+        echo second.repr
+        echo child.repr
     return child
 
 proc mating*(first, second: Genotype): Genotype =

@@ -1,6 +1,8 @@
 {.experimental: "codeReordering".}
 
-import std/[algorithm, math, random, strformat]
+import std/[algorithm, math, random]
+when defined(verbose):
+    import strformat
 
 import genotype
 import species
@@ -43,10 +45,12 @@ proc registerNewSpecies*(p: Population, representative: Organism) =
             SPECIES_HISTORY.add(species)
     else:
         SPECIES_HISTORY = @[species]
+    when defined(verbose):
+        echo "[Speciation] Organism ", representative.id, " assigned to new species ", species.id
 
 proc spawn*(p: Population, g: Genotype) =
     ## Spawns an initial population from a base genotype
-    for i in 0 .. param.POP_SIZE:
+    for i in 0..<param.POP_SIZE:
         let g = g.clone()
         g.connect()
         g.mutateLinkWeights(1, 1, COLDGAUSSIAN)
@@ -146,16 +150,15 @@ proc speciate*(p: Population, o: Organism) =
             let distance = o.genome.speciationDistance(s.representative.genome)
             if distance < param.COMPAT_THRESHOLD:
                 when defined(verbose):
-                    echo "[Speciation] Organism ", o.id, " assigned to species ", s.id, " with distance ", distance
+                    echo fmt"[Speciation] Organism {o.id} assigned to species {s.id} with distance {distance}"
                 s.addOrganism(o)
                 ## If species re-evolved into existence
                 if s notin p.species:
+                    when defined(verbose):
+                        echo fmt"[Speciation] Species {s.id} has revived."
                     p.species.add(s)
                 return
-        if o.species.isNil:
-            when defined(verbose):
-                echo "[Speciation] Organism ", o.id, " assigned to new species ", speciesNum + 1
-            p.registerNewSpecies(o)
+        p.registerNewSpecies(o)
 
 proc expectedOffspring*(p: Population) =
     ## Rounds expected offspring and accurately carries the remainder across
@@ -230,6 +233,8 @@ proc cullSpecies*(p: Population) =
     for oId in countdown(p.population.high, 0):
         let o = p.population[oId]
         if o.toDie:
+            when defined(verbose):
+                echo "[Culling] Removing organism " & $o.id
             o.species.members.del(o.species.members.find(o))
             p.population.del(oId)
     for sId in countdown(p.species.high, 0):
@@ -245,82 +250,73 @@ proc reproduce*(p: Population) =
         echo "[Reproduction] Reproduction started"
     for i in 0..p.species.high:
         let s = p.species[i]
+        var poolSize = s.members.high
         when defined(verbose):
             echo "[Reproduction] Species ", s.id, " reproducing"
         var
             keptLeader = false    ## Whether the leader has been kept
             leader = s.members[0] ## The species leader
             baby: Organism        ## The baby to be created
-        # If the species has no members, then it dies
-        if s.expectedOffspring > 0 and s.members.len == 0:
-            discard
+        # Using an assert so it gets optimized away when needed.
+        assert not (s.expectedOffspring > 0 and s.members.len == 0)
         s.sortMembers()
-        # Create the designed number of offspring for the Species
         for _ in 0..<s.expectedOffspring:
-            # If leader is population champion, mutate it
             if leader.isChampion and leader.expectedOffspring > 0:
                 when defined(verbose):
                     echo "[Reproduction] Mutating champion ", leader.id
-                baby = s.mutateChampion()
-            elif not keptLeader:
-                ## If we still haven't saved the leader, do so
+                var cloneGenome = leader.genome.clone()
+                if leader.expectedOffspring > 1:
+                    cloneGenome.mutateChampionGenome()
+                baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
+                leader.expectedOffspring -= 1
+            elif (not keptLeader) and s.expectedOffspring > 5:
                 when defined(verbose):
                     echo "[Reproduction] Saving species leader ", leader.id
                 var cloneGenome = leader.genome.clone()
                 baby = newOrganism(cloneGenome, 0.0, leader.generation + 1)
                 keptLeader = true
-            elif rand(1.0) < param.MUT_ONLY_PROB or s.members.len == 1:
-                ## If we choose to mutate/there's only us left
+            elif rand(1.0) < param.MUT_ONLY_PROB or poolSize == 0:
                 var
-                    randomParent = s.members[rand(s.members.high)]
+                    randomParent = s.members[rand(poolSize)]
                     cloneGenome = randomParent.genome.clone()
                 when defined(verbose):
                     echo "[Reproduction] Mutating organism ", randomParent.id
-                mutate(cloneGenome)
+                cloneGenome.mutate()
                 baby = newOrganism(cloneGenome, 0.0, randomParent.generation + 1)
             else:
-                ## Otherwise, we should mate
-                let mom = s.members[rand(s.members.high)]
+                let mom = s.members[rand(poolSize)]
                 var dad: Organism
-                ## Decide if we mate with our own species or another
                 if rand(1.0) > param.INTERSPECIES_MATE_RATE:
-                    ## Mate within species
+                    dad = s.members[rand(poolSize)]
                     when defined(verbose):
                         echo "[Reproduction] Mating organism ", mom.id, " within species"
-                    dad = s.members[rand(s.members.high)]
                 else:
-                    ## Mate with other species
                     let randSpecies = s.randOtherSpecies(p)
                     dad = randSpecies.members[0]
                     when defined(verbose):
                         echo fmt"[Reproduction] Mating organism {mom.id} from species {s.id} with organism {dad.id} from species {randSpecies.id}"
                 var newGenome = mating(mom.genome, dad.genome)
-                if rand(1.0) > param.MATE_ONLY_PROB:
-                    ## Randomly mutate the baby, or always if parents are the same.
+                if rand(1.0) > param.MATE_ONLY_PROB or dad.genome == mom.genome:
                     when defined(verbose):
                         echo "[Reproduction] Mutating mating result"
-                    mutate(newGenome)
+                    newGenome.mutate()
                 baby = newOrganism(newGenome, 0.0, p.currentGeneration + 1)
-            ## Assign to species at birth
             p.speciate(baby)
         when defined(verbose):
             echo "[Reproduction] Reproduction complete"
 
-proc mutateChampion*(s: Species): Organism =
-    let leader = s.members[0]
-    var cloneGenome = leader.genome.clone()
+proc mutateChampionGenome*(g: sink Genotype) =
     if rand(1.0) < 0.8 or param.MUT_ADD_LINK_PROB == 0.0:
-        cloneGenome.mutateLinkWeights(1.0, param.MUT_WEIGHT_POWER, GAUSSIAN)
+        g.mutateLinkWeights(1.0, param.MUT_WEIGHT_POWER, GAUSSIAN)
     else:
-        cloneGenome.mutateAddLink()
-    result = newOrganism(cloneGenome, 0.0, leader.generation + 1)
-    leader.expectedOffspring -= 1
+        g.mutateAddLink()
 
 proc randOtherSpecies(s: Species, p: Population): Species =
     ## Try to select a different species than the one provided, trending towards better ones
+    var tries = 0
     var randSpecies = s
     if not p.species.len == 1:
-        while randSpecies == s:
+        while randSpecies == s and tries < 5:
             var randmult = gaussRand() / 4.0
             if randmult > 1.0:
                 randmult = 1.0
@@ -328,6 +324,7 @@ proc randOtherSpecies(s: Species, p: Population): Species =
             if randSpeciesIdx < 0:
                 randSpeciesIdx = p.species.len + randSpeciesIdx
             randSpecies = p.species[randSpeciesIdx]
+            inc tries
     return randSpecies
 
 proc speciesCmp*(a, b: Species): int =

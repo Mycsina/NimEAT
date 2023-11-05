@@ -3,7 +3,7 @@
     "tasks": [
         {
             "label": "nim: build current file (for debugging)",
-            "command": "nim",
+            "command": "/home/mycsina/.nimble/bin/nim",
             "args": [
                 "compile",
                 "-g",
@@ -15,24 +15,6 @@
                 "cwd": "${workspaceRoot}"
             },
             "type": "shell",
-        },
-        {
-            "label": "Run module.nim",
-            "command": "nim",
-            "args": [
-                "c",
-                "-o:bin/${fileBasenameNoExtension}",
-                "-r",
-                "${fileBasename}"
-            ],
-            "options": {
-                "cwd": "${workspaceRoot}"
-            },
-            "type": "shell",
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
         }
     ]
 }

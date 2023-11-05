@@ -125,8 +125,12 @@ proc adjustFitness*(s: Species) =
 proc markForDeath*(s: Species) =
     ## Marks organisms not able to be parents to die.
     var parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
+    when defined(verbose):
+        echo fmt"[markForDeath] Available number of parent spots: {parentNumber}"
     for o in s.members:
         if parentNumber > 0:
+            when defined(verbose):
+                echo "Organism " & $o.id & " is going to be a parent."
             o.toDie = false
             dec parentNumber
         else:
