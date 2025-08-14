@@ -34,7 +34,7 @@ type
 
 var
     INNO_CONST* = 1
-    SEEN_INNO* = newTable[(int, int), int]()
+    SEEN_INNO* = newTable[(int, int), int](128)  # Pre-allocate for performance
 
 proc resetInnovation*() =
     INNO_CONST = 1
@@ -45,13 +45,12 @@ func newNodeGene*(nodeType: NType, id: int): NodeGene =
 
 proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
     result = LinkGene(src: src, dst: dst, weight: weight, enabled: enabled)
-    if src != 0:
-        if SEEN_INNO.hasKey((src, dst)):
-            result.innovation = SEEN_INNO[(src, dst)]
-        else:
-            result.innovation = INNO_CONST
-            SEEN_INNO[(src, dst)] = INNO_CONST
-            inc INNO_CONST
+    if SEEN_INNO.hasKey((src, dst)):
+        result.innovation = SEEN_INNO[(src, dst)]
+    else:
+        result.innovation = INNO_CONST
+        SEEN_INNO[(src, dst)] = INNO_CONST
+        inc INNO_CONST
 
 proc newGenotype*(): Genotype =
     result = new Genotype
@@ -75,6 +74,8 @@ proc addNodeGene*(this: Genotype, nodeType: NType, id: int) =
     elif nodeType == OUTPUT:
         inc this.outputs
     inc this.currNode
+    if nodeType != INPUT and nodeType != BIAS:
+        this.addLinkGene(0, id, randWeight(), true)
 
 proc addNodeGene*(this: Genotype, nodeType: NType) =
     this.addNodeGene(nodeType, this.currNode)
@@ -172,20 +173,20 @@ func `==`*(a: Genotype, b: Genotype): bool =
         return false
 
 proc speciationDistance*(first, second: Genotype): float =
-    ## Calculate the speciation distance between two genotypes
+    ## Calculate the NEAT speciation distance between two genotypes
     var
         numDisjoint = 0.0
         numExcess = 0.0
         numMatching = 0.0
-        totalMutDiff = 0.0
+        totalWeightDiff = 0.0
     let
         size1 = first.links.len
         size2 = second.links.len
         maxGenomeSize = max(size1, size2)
     var
         gene1, gene2: LinkGene
-        i, i1, i2: int = 0
-    while i < maxGenomeSize:
+        i1, i2: int = 0
+    while i1 < size1 or i2 < size2:
         if i1 >= size1:
             numExcess += 1.0
             i2 += 1
@@ -198,22 +199,20 @@ proc speciationDistance*(first, second: Genotype): float =
             let
                 p1innov = gene1.innovation
                 p2innov = gene2.innovation
-                mutDiff = abs(gene1.mutDiff - gene2.mutDiff)
-            totalMutDiff += mutDiff
             if p1innov == p2innov:
                 numMatching += 1.0
+                totalWeightDiff += abs(gene1.weight - gene2.weight)
                 i1 += 1
                 i2 += 1
             elif p1innov < p2innov:
                 i1 += 1
                 numDisjoint += 1.0
-            elif p2innov < p1innov:
+            else:
                 i2 += 1
                 numDisjoint += 1.0
-        inc i
-    return param.DISJOINT_COEFF * numDisjoint + param.EXCESS_COEFF * numExcess + param.MUTDIFF_COEFF * (
-            totalMutDiff /
-            numMatching)
+    let N = if maxGenomeSize < 20: 1.0 else: maxGenomeSize.toFloat
+    let avgWeightDiff = if numMatching == 0.0: 0.0 else: totalWeightDiff / numMatching
+    return param.DISJOINT_COEFF * (numDisjoint / N) + param.EXCESS_COEFF * (numExcess / N) + param.MUTDIFF_COEFF * avgWeightDiff
 
 proc innovationCrossover*(first, second: Genotype): Genotype =
     ## Refactor this mess
@@ -286,7 +285,7 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
                 child.addNodeGene(HIDDEN, inNode)
             if not child.checkNode(outNode):
                 child.addNodeGene(HIDDEN, outNode)
-            child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled)
+            child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled, chosenLink.innovation)
     if child.links.len == 0:
         echo first.repr
         echo second.repr

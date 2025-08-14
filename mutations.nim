@@ -44,32 +44,23 @@ macro checkLink(): untyped =
             if link.src == node1 and link.dst == node2:
                 val = false
                 break
-        if not val:
-            inc tryCount
-        else:
+        if val:
             # TODO: call network.isRecur here too
             var isRecursive = false
-            if nGene1.nType == OUTPUT:
+            if recursion and nGene1.nType == OUTPUT:
                 isRecursive = true
-            if not isRecursive:
-                inc tryCount
-            else:
+            # Accept non-recursive links always; accept recursive if allowed
+            if (not recursion and not isRecursive) or (recursion and isRecursive):
                 success = true
                 break
+        inc tryCount
 
 proc mutateToggleEnable*(g: Genotype) =
     let randIdx = rand(g.links.high)
     let randomGene = g.links[randIdx]
     var randCopy = randomGene
     if randomGene.enabled:
-        for i in 0..g.links.high:
-            let gene = g.links[i]
-            var val = true
-            if gene.src == gene.src and gene.enabled == true and gene.innovation != randomGene.innovation:
-                val = false
-                break
-            if val:
-                randCopy.enabled = false
+        randCopy.enabled = false
     else:
         randCopy.enabled = true
     g.links[randIdx] = randCopy
@@ -87,24 +78,27 @@ proc mutateAddNode*(g: Genotype) =
         var
             count = 0
             found = false
-            randomLink = g.links[rand(g.links.high)]
+            idx = rand(g.links.high)
+            randomLink = g.links[idx]
         while count < 20 and not found:
-            if randomLink.enabled or g.nodes[randomLink.src].nType != BIAS:
+            if randomLink.enabled and g.nodes[randomLink.src].nType != BIAS:
                 found = true
             inc count
         if found:
-            randomLink.enabled = false
+            # Disable the split link in-place
+            g.links[idx].enabled = false
             let
                 oldWeight = randomLink.weight
-            g.addNodeGene(HIDDEN, g.nodes.len)
-            g.addLinkGene(randomLink.src, g.nodes[g.nodes.high].id, 1.0, true)
-            g.addLinkGene(g.nodes[g.nodes.high].id, randomLink.dst, oldWeight, true)
+                newNodeId = g.nodes.len
+            g.addNodeGene(HIDDEN, newNodeId)
+            g.addLinkGene(randomLink.src, newNodeId, 1.0, true)
+            g.addLinkGene(newNodeId, randomLink.dst, oldWeight, true)
 
 proc mutateAddLink*(g: Genotype) =
     var
         tries = g.nodes.len * g.nodes.len
         tryCount = 0
-        recursion = rand(1.0) > 0.5
+        recursion = param.ALLOW_RECURRENT and rand(1.0) < param.RECURRENCE_RATE
         success = false
         # Found nodes
         node1 = 0
@@ -129,6 +123,10 @@ proc mutateAddLink*(g: Genotype) =
         while tryCount < tries:
             node1 = rand(0..g.nodes.len - 1)
             node2 = rand(0..g.nodes.len - 1)
+            # Enforce feed-forward when not recurrent: src < dst and never into INPUT
+            if node1 >= node2 or g.nodes[node2].nType == INPUT:
+                inc tryCount
+                continue
             nGene1 = g.nodes[node1]
             nGene2 = g.nodes[node2]
             # Check if link already exists

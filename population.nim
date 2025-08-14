@@ -1,8 +1,6 @@
 {.experimental: "codeReordering".}
 
-import std/[algorithm, math, random]
-when defined(verbose):
-    import strformat
+import std/[algorithm, math, random, strformat]
 
 import genotype
 import species
@@ -52,7 +50,7 @@ proc spawn*(p: Population, g: Genotype) =
     ## Spawns an initial population from a base genotype
     for i in 0..<param.POP_SIZE:
         let g = g.clone()
-        g.connect()
+        # TODO: ensure initial genome contains intended minimal connectivity prior to spawn
         g.mutateLinkWeights(1, 1, COLDGAUSSIAN)
         let o = newOrganism(g, 0.0, 1)
         p.population.add(o)
@@ -61,8 +59,9 @@ proc spawn*(p: Population, g: Genotype) =
 
 proc advanceGeneration*(p: Population) =
     ## Advances the population to the next generation
-    echo "Generation ", p.currentGeneration
-    echo "Population: ", p.population.len
+    when defined(verbose):
+        echo "Generation ", p.currentGeneration
+        echo "Population: ", p.population.len
     if param.ENFORCED_DIVERSITY:
         param.adjustCompatibility(p)
     for s in p.species:
@@ -75,8 +74,8 @@ proc advanceGeneration*(p: Population) =
                 s.extinct = true
                 break
     p.sortSpecies()
-    echo "Species: ", p.species.len
     when defined(verbose):
+        echo "Species: ", p.species.len
         echo "Compatibility threshold: ", param.COMPAT_THRESHOLD
     for s in p.species:
         s.adjustFitness()
@@ -91,7 +90,7 @@ proc advanceGeneration*(p: Population) =
     if champion.originalFitness > p.highestFitness:
         p.highestFitness = champion.originalFitness
         p.ageSinceImprovement = 0
-        echo "New champion! Fitness: ", p.highestFitness
+        echo fmt"New champion! Fitness: {p.highestFitness} Generation: {p.currentGeneration}"
     else:
         p.ageSinceImprovement += 1
     ## If we have stagnated, delta code our population
@@ -167,7 +166,8 @@ proc expectedOffspring*(p: Population) =
         echo "[Offspring]"
     let averageFit = p.averageFitness()
     var totalExpected = 0
-    echo "Average fitness: ", averageFit
+    when defined(verbose):
+        echo "Average fitness: ", averageFit
     for o in p.population:
         o.expectedOffspring = o.fitness / averageFit
     for s in p.species:
@@ -337,7 +337,7 @@ proc speciesCmp*(a, b: Species): int =
 
 proc sortSpecies*(p: Population, order = SortOrder.DESCENDING) =
     ## Sorts species in population by fittest organism
-    p.species.sort(speciesCmp)
+    p.species.sort(speciesCmp, order)
 
 proc averageFitness*(p: Population): float =
     ## Returns the average fitness of the population

@@ -5,27 +5,29 @@ type
         REGULAR_CULLING_INTERVAL* = 30
         ENFORCED_DIVERSITY* = true
         SPECIES_DROPOFF_AGE* = 30
-        DIVERSITY_TARGET* = 3
-        SURVIVAL_THRESHOLD* = 0.1
-        INTERSPECIES_MATE_RATE* = 0.001
+        DIVERSITY_TARGET* = 10
+        SURVIVAL_THRESHOLD* = 0.3
+        INTERSPECIES_MATE_RATE* = 0.01
         MATE_MULTIPOINT_PROB* = 1.0
         DISABLED_GENE_INHERIT_PROB* = 0.75
-        COMPAT_THRESHOLD* = 3.0
-        COMPATIBILITY_MODIFIER* = 0.3
+        COMPAT_THRESHOLD* = 2.0
+        COMPATIBILITY_MODIFIER* = 0.2
         DISJOINT_COEFF* = 1.0
         EXCESS_COEFF* = 1.0
-        MUTDIFF_COEFF* = 0.4
+        MUTDIFF_COEFF* = 0.5
         BABIES_STOLEN* = 0
         MATE_ONLY_PROB* = 0.2
         DROPOFF_AGE* = 15
-        AGE_SIGNIFICANCE* = 1.0
-        MUT_ADD_LINK_PROB* = 0.1
-        MUT_ADD_NODE_PROB* = 0.0025
-        MUT_WEIGHT_POWER* = 1.0
+        AGE_SIGNIFICANCE* = 2.5
+        MUT_ADD_LINK_PROB* = 0.15
+        MUT_ADD_NODE_PROB* = 0.001
+        MUT_WEIGHT_POWER* = 1.5
         MUT_WEIGHT_PROB* = 0.9
-        MUT_ONLY_PROB* = 0.25
-        MUT_TOGGLE_PROB* = 0.00
-        MUT_REENABLE_PROB* = 0.00
+        MUT_ONLY_PROB* = 0.35
+        MUT_TOGGLE_PROB* = 0.1
+        MUT_REENABLE_PROB* = 0.05
+        ALLOW_RECURRENT* = false
+        RECURRENCE_RATE* = 0.05
 
 var param* = new NEATParams
 
@@ -128,3 +130,11 @@ proc setMutToggleProb*(self: NEATParams, prob: float) =
 proc setMutReenableProb*(self: NEATParams, prob: float) =
     ## Sets probability of reenabling a link
     self.MUT_REENABLE_PROB = prob
+
+proc setAllowRecurrent*(self: NEATParams, allow: bool) =
+    ## Sets whether recurrent connections are allowed
+    self.ALLOW_RECURRENT = allow
+
+proc setRecurrenceRate*(self: NEATParams, rate: float) =
+    ## Sets base probability of proposing a recurrent link during link mutation
+    self.RECURRENCE_RATE = rate

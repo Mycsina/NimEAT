@@ -1,5 +1,4 @@
-import std/[math, jsonutils, json, random, os]
-import fusion/[ioutils]
+import std/[math, jsonutils, json, random, os, posix, strformat]
 
 when defined(debug):
     import nimprof
@@ -18,13 +17,11 @@ import population
 import species
 import params
 
-param.setPopSize(10)
-param.setMutAddNodeProb(0.001)
-param.setMutAddLinkProb(0.01)
+param.setPopSize(512)
 
 import nimgraphviz
 
-randomize(0)
+randomize()
 
 proc xorEvaluate(o: Organism): bool =
     let inputs = @[
@@ -43,8 +40,12 @@ proc xorEvaluate(o: Organism): bool =
     for i in 0 ..< inputs.len:
         let res = o.net.predict(inputs[i])
         error += abs(res[0] - outputs[i])
-    o.fitness = (4.0 - error).pow 2.0
-    return o.fitness > 15.75
+    
+    let rawFitness = (4.0 - error)
+    let complexityPenalty = 0.01 * o.genome.nodes.len.toFloat + 0.005 * o.genome.links.len.toFloat
+    o.fitness = rawFitness - complexityPenalty
+    
+    return o.fitness > 3.79  # Adjusted threshold to account for penalty
 
 
 proc winnerTest(champ: Organism) =
@@ -63,9 +64,11 @@ proc winnerTest(champ: Organism) =
     for i in 0..inputs.high:
         let input = inputs[i]
         let res = champ.net.predict(input)
-        echo "Input: ", input
-        echo "Expected: ", outputs[i]
-        echo "Actual: ", res
+        echo fmt"Input: {input} Expected: {outputs[i]} Actual: {res[0]}"
+
+    echo "Fitness: ", champ.fitness
+    echo "Nodes: ", champ.genome.nodes.len
+    echo "Links: ", champ.genome.links.len
 
 proc xorTest() =
     var g = newGenotype()

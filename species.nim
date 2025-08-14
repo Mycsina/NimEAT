@@ -69,19 +69,19 @@ proc newOrganism*(g: Genotype, fit: float, gen: int): Organism =
     result.fitness = fit
     result.originalFitness = fit
     result.generation = gen
-    result.net = g.generateNetwork()
+    # Build the network from the organism's own genome clone for determinism
+    result.net = result.genome.generateNetwork()
     inc CURR_IND
 
 proc recreate*(o: Organism) =
     o.net = o.genome.generateNetwork()
 
 proc findChampion*(s: Species): Organism =
-    var champion: Organism
-    champion.fitness = -1.0
+    var best: Organism = s.members[0]
     for g in s.members:
-        if g.fitness > champion.fitness:
-            champion = g
-    return champion
+        if g.fitness > best.fitness:
+            best = g
+    return best
 
 proc memberCmp*(a, b: Organism): int =
     ## Compare two organisms based on fitness
@@ -127,12 +127,14 @@ proc markForDeath*(s: Species) =
     var parentNumber = toInt floor(param.SURVIVAL_THRESHOLD * s.members.len.toFloat + 1.0)
     when defined(verbose):
         echo fmt"[markForDeath] Available number of parent spots: {parentNumber}"
-    for o in s.members:
-        if parentNumber > 0:
+    # Elitism: always preserve the leader (best organism)
+    for i, o in s.members:
+        if i == 0 or parentNumber > 0:  # Leader is always at index 0 after sorting
             when defined(verbose):
                 echo "Organism " & $o.id & " is going to be a parent."
             o.toDie = false
-            dec parentNumber
+            if i > 0:  # Don't decrement for leader
+                dec parentNumber
         else:
             o.toDie = true
 
