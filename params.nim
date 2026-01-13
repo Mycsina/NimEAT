@@ -3,6 +3,7 @@ type
         POP_SIZE* = 150
         REGULAR_CULLING_AGE* = 20
         REGULAR_CULLING_INTERVAL* = 30
+        MAX_GENERATIONS* = 100
         ENFORCED_DIVERSITY* = true
         SPECIES_DROPOFF_AGE* = 30
         DIVERSITY_TARGET* = 10
@@ -33,6 +34,7 @@ var param* = new NEATParams
 
 proc setPopSize*(self: NEATParams, size: int) =
     ## Sets population size of first generation
+    assert size > 0, "POP_SIZE must be positive"
     self.POP_SIZE = size
 
 proc setRegularCullingAge*(self: NEATParams, age: int) =
@@ -53,6 +55,7 @@ proc setDiversityTarget*(self: NEATParams, target: int) =
 
 proc setSurvivalThreshold*(self: NEATParams, threshold: float) =
     ## Controls threshold of best organisms that reproduce
+    assert threshold > 0.0 and threshold <= 1.0, "SURVIVAL_THRESHOLD must be in (0, 1]"
     self.SURVIVAL_THRESHOLD = threshold
 
 proc setInterspeciesMateRate*(self: NEATParams, rate: float) =
@@ -117,6 +120,7 @@ proc setMutWeightPower*(self: NEATParams, power: float) =
 
 proc setMutWeightProb*(self: NEATParams, prob: float) =
     ## Sets probability of weight mutation
+    assert prob >= 0.0 and prob <= 1.0, "MUT_WEIGHT_PROB must be in [0, 1]"
     self.MUT_WEIGHT_PROB = prob
 
 proc setMutOnlyProb*(self: NEATParams, prob: float) =

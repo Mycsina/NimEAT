@@ -48,7 +48,7 @@ proc xorEvaluate(o: Organism): bool =
     return o.fitness > 3.79  # Adjusted threshold to account for penalty
 
 
-proc winnerTest(champ: Organism) =
+proc winnerTest*(champ: Organism) =
     let inputs = @[
         @[0.0, 0.0],
         @[0.0, 1.0],
@@ -70,7 +70,7 @@ proc winnerTest(champ: Organism) =
     echo "Nodes: ", champ.genome.nodes.len
     echo "Links: ", champ.genome.links.len
 
-proc xorTest() =
+proc xorTest*() =
     var g = newGenotype()
     g.addNodeGene(INPUT, 1)
     g.addNodeGene(INPUT, 2)
@@ -81,16 +81,20 @@ proc xorTest() =
     var
         winner = false
         champion: Organism
-    while not winner:
+    while not winner and p.currentGeneration < param.MAX_GENERATIONS:
         for o in p.population:
             if xorEvaluate(o):
                 winner = true
                 champion = o
                 break
         p.advanceGeneration()
-    echo "Winner found in generation ", p.currentGeneration
-    champion.net.blueprint.toGraph().exportImage("xor_winner.png")
-    "xor_winner.json".open(fmWrite).write champion.net.blueprint.toJson()
-    winnerTest(champion)
+    if not champion.isNil:
+        echo "Winner found in generation ", p.currentGeneration
+        champion.net.blueprint.toGraph().exportImage("xor_winner.png")
+        "xor_winner.json".open(fmWrite).write champion.net.blueprint.toJson()
+        winnerTest(champion)
+    else:
+        echo "No winner found within max generations."
 
-xorTest()
+when isMainModule:
+    xorTest()

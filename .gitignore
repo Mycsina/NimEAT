@@ -1,8 +1,15 @@
+# Ignore all files without extension (compiled binaries)
+*
+!/*/
+!*.*
+!LICENSE
+!Makefile
+
+# Re-specify ignored extensions after the * rule
 *.png
-test.nim
-nimcache
 *.json
 *.exe
-/bin/
 *.txt
-.vscode/tasks.json
+nimcache/
+.vscode/
+/bin/

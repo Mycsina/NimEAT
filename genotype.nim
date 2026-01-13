@@ -40,7 +40,7 @@ proc resetInnovation*() =
     INNO_CONST = 1
     SEEN_INNO = newTable[(int, int), int]()
 
-func newNodeGene*(nodeType: NType, id: int): NodeGene =
+func newNodeGene*(nodeType: NType, id: int): NodeGene {.inline.} =
     result = NodeGene(id: id, nType: nodeType)
 
 proc newLinkGene*(src: int, dst: int, weight: float, enabled: bool): LinkGene =
@@ -95,7 +95,7 @@ proc clone*(this: Genotype): Genotype =
 proc clone*(this: LinkGene): LinkGene =
     return this.deepCopy()
 
-func checkNode*(this: Genotype, id: int): bool =
+func checkNode*(this: Genotype, id: int): bool {.inline, raises: [].} =
     return uint16(id) in this.nodeIds
 
 proc sortNodes*(this: Genotype) =
@@ -121,14 +121,14 @@ type
     mutType* = enum
         GAUSSIAN, COLDGAUSSIAN
 
-proc randomSignal*(): int =
+proc randomSignal*(): int {.inline.} =
     # Randomly return 1 or -1
     if rand(1.0) > 0.5:
         return 1
     else:
         return -1
 
-proc randWeight*(): float =
+proc randWeight*(): float {.inline.} =
     # Randomly return a weight between -1 and 1
     return rand(1.0) * randomSignal().toFloat
 
@@ -142,7 +142,7 @@ proc connect*(this: Genotype) =
         for j in this.inputs+1..this.inputs+this.outputs:
             this.addLinkGene(i, j, randWeight(), true)
 
-func isSameTopology*(a: Genotype, b: Genotype): bool =
+func isSameTopology*(a, b: Genotype): bool {.raises: [].} =
     ## Compare two genotypes
     if a.nodes.len != b.nodes.len:
         return false
@@ -254,7 +254,6 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
                     chosenLink = firstLink
                 else:
                     chosenLink = secondLink
-                # TODO: test if above or below is best
                 # chosenLink = firstLink.clone()
                 # chosenLink.weight = (firstLink.weight + secondLink.weight) / 2
                 # chosenLink.mutDiff = (firstLink.mutDiff + secondLink.mutDiff) / 2
@@ -286,10 +285,11 @@ proc innovationCrossover*(first, second: Genotype): Genotype =
             if not child.checkNode(outNode):
                 child.addNodeGene(HIDDEN, outNode)
             child.addLinkGene(inNode, outNode, chosenLink.weight, chosenLink.enabled, chosenLink.innovation)
-    if child.links.len == 0:
-        echo first.repr
-        echo second.repr
-        echo child.repr
+    when defined(verbose):
+        if child.links.len == 0:
+            echo first.repr
+            echo second.repr
+            echo child.repr
     return child
 
 proc mating*(first, second: Genotype): Genotype =

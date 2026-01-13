@@ -50,7 +50,7 @@ proc spawn*(p: Population, g: Genotype) =
     ## Spawns an initial population from a base genotype
     for i in 0..<param.POP_SIZE:
         let g = g.clone()
-        # TODO: ensure initial genome contains intended minimal connectivity prior to spawn
+        # Ensure initial genome has random weights
         g.mutateLinkWeights(1, 1, COLDGAUSSIAN)
         let o = newOrganism(g, 0.0, 1)
         p.population.add(o)
@@ -97,8 +97,20 @@ proc advanceGeneration*(p: Population) =
     if p.ageSinceImprovement >= 5 + param.DROPOFF_AGE:
         p.deltaCoding()
     elif param.BABIES_STOLEN > 0:
-        ## TODO: implement baby stealing
-        discard
+        ## Baby Stealing: Take from worst, give to best
+        let bestSpecies = p.species[0]
+        var stolen = 0
+        
+        # Steal from worst species
+        for i in countdown(p.species.high, 1): # Don't steal from best
+            if stolen >= param.BABIES_STOLEN: break
+            let s = p.species[i]
+            while s.expectedOffspring > 0 and stolen < param.BABIES_STOLEN:
+                dec s.expectedOffspring
+                inc stolen
+        
+        # Give to best
+        bestSpecies.expectedOffspring += stolen
     p.cullSpecies()
     p.sortSpecies()
     p.reproduce()
@@ -139,25 +151,33 @@ proc adjustCompatibility(params: NEATParams, p: Population) =
         param.COMPAT_THRESHOLD = param.COMPATIBILITY_MODIFIER
 
 proc speciate*(p: Population, o: Organism) =
-    ## Assigns an organism to a species
+    ## Assigns an organism to the closest species based on genomic distance
     let speciesNum = SPECIES_HISTORY.len
     if speciesNum == 0:
         p.registerNewSpecies(o)
     else:
-        # TODO closest species should be assigned and not first one
+        var 
+            bestSpecies: Species = nil
+            minDist = high(float)
+        
+        # Find the closest compatible species
         for s in SPECIES_HISTORY:
-            let distance = o.genome.speciationDistance(s.representative.genome)
-            if distance < param.COMPAT_THRESHOLD:
+            let dist = o.genome.speciationDistance(s.representative.genome)
+            if dist < minDist:
+                minDist = dist
+                bestSpecies = s
+        
+        if not bestSpecies.isNil and minDist < param.COMPAT_THRESHOLD:
+            when defined(verbose):
+                echo fmt"[Speciation] Organism {o.id} assigned to species {bestSpecies.id} with distance {minDist}"
+            bestSpecies.addOrganism(o)
+            ## If species re-evolved into existence
+            if bestSpecies notin p.species:
                 when defined(verbose):
-                    echo fmt"[Speciation] Organism {o.id} assigned to species {s.id} with distance {distance}"
-                s.addOrganism(o)
-                ## If species re-evolved into existence
-                if s notin p.species:
-                    when defined(verbose):
-                        echo fmt"[Speciation] Species {s.id} has revived."
-                    p.species.add(s)
-                return
-        p.registerNewSpecies(o)
+                    echo fmt"[Speciation] Species {bestSpecies.id} has revived."
+                p.species.add(bestSpecies)
+        else:
+            p.registerNewSpecies(o)
 
 proc expectedOffspring*(p: Population) =
     ## Rounds expected offspring and accurately carries the remainder across
@@ -187,12 +207,22 @@ proc expectedOffspring*(p: Population) =
                 carry -= entire.toFloat
         s.expectedOffspring = expected
         totalExpected += expected
-    # Give any babies lost due to floating point errors to the
-    # best Species
+    
+    # Baby Stealing / Gap Filling
+    # Ensure total offspring exactly matches population size
     if totalExpected < p.population.len:
-        let
-            bestSpecies = p.species[0]
+        # Give remaining slots to the best species
+        let bestSpecies = p.species[0]
         bestSpecies.expectedOffspring += (p.population.len - totalExpected)
+    elif totalExpected > p.population.len:
+        # Steal slots from the worst species first
+        var excess = totalExpected - p.population.len
+        while excess > 0:
+            for i in countdown(p.species.high, 0):
+                if excess == 0: break
+                if p.species[i].expectedOffspring > 0:
+                    dec p.species[i].expectedOffspring
+                    dec excess
 
 proc deltaCoding*(p: Population) =
     ## Assign offspring to the leaders of the two best species
@@ -327,7 +357,7 @@ proc randOtherSpecies(s: Species, p: Population): Species =
             inc tries
     return randSpecies
 
-proc speciesCmp*(a, b: Species): int =
+func speciesCmp*(a, b: Species): int =
     if a.members[0].fitness > b.members[0].fitness:
         return 1
     elif a.members[0].fitness < b.members[0].fitness:

@@ -62,14 +62,14 @@ proc newSpecies*(representative: Organism, id: int): Species =
     result = newSpecies(representative)
     result.id = id
 
-proc newOrganism*(g: Genotype, fit: float, gen: int): Organism =
+proc newOrganism*(g: sink Genotype, fit: float, gen: int): Organism =
     result = new Organism
-    result.genome = g.clone()
+    result.genome = g  # Move ownership, no clone needed
     result.id = CURR_IND
     result.fitness = fit
     result.originalFitness = fit
     result.generation = gen
-    # Build the network from the organism's own genome clone for determinism
+    # Build the network from the organism's own genome
     result.net = result.genome.generateNetwork()
     inc CURR_IND
 
@@ -83,7 +83,7 @@ proc findChampion*(s: Species): Organism =
             best = g
     return best
 
-proc memberCmp*(a, b: Organism): int =
+func memberCmp*(a, b: Organism): int =
     ## Compare two organisms based on fitness
     if a.fitness > b.fitness:
         return 1
@@ -149,14 +149,14 @@ proc calculateMaxFitness*(s: Species) =
     s.topFitness = s.members[0].fitness
 
 proc `$`*(s: Species): string =
-    result = "Species ("
+    result = "Species("
     result.add fmt"ID: {s.id}, "
     result.add fmt"Members: {s.members.len}, "
-    result.add fmt"Representative: {s.representative.id})"
+    result.add fmt"Representative: {s.representative.id}, "
     result.add fmt"Age: {s.age}, "
     result.add fmt"AgeLastImproved: {s.ageLastImproved}, "
     result.add fmt"ExpectedOffspring: {s.expectedOffspring}, "
     result.add fmt"TopFitness: {s.topFitness}, "
     result.add fmt"BestEverFitness: {s.bestEverFitness}, "
     result.add fmt"AverageFitness: {s.averageFitness}, "
-    result.add fmt"Novel: {s.novel}, "
+    result.add fmt"Novel: {s.novel})"

@@ -1,4 +1,4 @@
-import std/[sequtils, tables]
+import std/[sequtils]
 
 import activation
 import genotype
@@ -29,7 +29,7 @@ type
         outputs*: seq[Node]
         score*: float
         blueprint*: Genotype
-        nodeMap*: Table[int, Node]  # Fast node lookup by ID
+        nodeMap*: seq[Node]  # Fast node lookup by ID (O(1) indexed by node ID)
 
 proc newNode*(ntype: NType, id: int): Node =
     result = new(Node)
@@ -53,14 +53,17 @@ proc addNode*(p: Network, node: Node) =
     elif node.ntype == OUTPUT:
         p.outputs.add node
     p.nodes.add node
-    p.nodeMap[node.id] = node  # Add to lookup table
+    # Ensure nodeMap can hold this ID
+    while p.nodeMap.len <= node.id:
+        p.nodeMap.add nil
+    p.nodeMap[node.id] = node
 
 proc addNode*(p: Network, nodeType: NType, id: int) =
     var n = newNode(nodeType, id)
     p.addNode(n)
 
-proc findNode*(n: Network, id: int): Node =
-    return n.nodeMap.getOrDefault(id, nil)
+proc findNode*(n: Network, id: int): Node {.inline.} =
+    if id < n.nodeMap.len: n.nodeMap[id] else: nil
 
 proc addLink*(n: Network, src, dst: int, weight: float, enabled: bool) =
     var l = newLink(src, dst, weight, enabled)
@@ -73,7 +76,7 @@ proc generateNetwork*(g: Genotype): Network =
     result = new(Network)
     result.nodes = @[]
     result.links = @[]
-    result.nodeMap = initTable[int, Node]()  # Initialize lookup table
+    result.nodeMap = @[]  # Initialize lookup seq
     result.blueprint = g
     for node in g.nodes:
         result.addNode(node.nType, node.id)

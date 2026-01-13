@@ -1,4 +1,4 @@
-import std/[random, sets, macros]
+import std/[random, sets]
 
 import genotype
 import params
@@ -37,23 +37,22 @@ proc mutateLinkWeights*(g: Genotype, chance: float, power: float, mutation: mutT
         newLink.mutDiff = randVal
         g.links[iter] = newLink
 
-macro checkLink(): untyped =
-    quote do:
-        var val = true
-        for link in g.links:
-            if link.src == node1 and link.dst == node2:
-                val = false
-                break
-        if val:
-            # TODO: call network.isRecur here too
-            var isRecursive = false
-            if recursion and nGene1.nType == OUTPUT:
-                isRecursive = true
-            # Accept non-recursive links always; accept recursive if allowed
-            if (not recursion and not isRecursive) or (recursion and isRecursive):
-                success = true
-                break
-        inc tryCount
+template checkLink(g: Genotype, node1, node2: int, nGene1: NodeGene, 
+                   recursion: bool, success: var bool, tryCount: var int) =
+    ## Check if a link can be added between node1 and node2
+    var linkExists = false
+    for link in g.links:
+        if link.src == node1 and link.dst == node2:
+            linkExists = true
+            break
+    if not linkExists:
+        var isRecursive = false
+        if recursion and nGene1.nType == OUTPUT:
+            isRecursive = true
+        # Accept non-recursive links always; accept recursive if allowed
+        if (not recursion and not isRecursive) or (recursion and isRecursive):
+            success = true
+    inc tryCount
 
 proc mutateToggleEnable*(g: Genotype) =
     let randIdx = rand(g.links.high)
@@ -78,9 +77,11 @@ proc mutateAddNode*(g: Genotype) =
         var
             count = 0
             found = false
+            idx = 0
+            randomLink: LinkGene
+        while count < 20 and not found:
             idx = rand(g.links.high)
             randomLink = g.links[idx]
-        while count < 20 and not found:
             if randomLink.enabled and g.nodes[randomLink.src].nType != BIAS:
                 found = true
             inc count
@@ -117,7 +118,8 @@ proc mutateAddLink*(g: Genotype) =
             nGene1 = g.nodes[node1]
             nGene2 = g.nodes[node2]
             # Check if link already exists
-            checkLink()
+            checkLink(g, node1, node2, nGene1, recursion, success, tryCount)
+            if success: break
 
     else:
         while tryCount < tries:
@@ -130,7 +132,8 @@ proc mutateAddLink*(g: Genotype) =
             nGene1 = g.nodes[node1]
             nGene2 = g.nodes[node2]
             # Check if link already exists
-            checkLink()
+            checkLink(g, node1, node2, nGene1, recursion, success, tryCount)
+            if success: break
     if success:
         g.addLinkGene(node1, node2, randWeight(), true)
         g.links[g.links.high].isRecurrent = recursion
